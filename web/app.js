@@ -751,7 +751,9 @@
   function tellBack() { toApp({ type: 'back', enabled: !!openDialog() }); }
   for (const d of document.querySelectorAll('dialog')) d.addEventListener('close', tellBack);
 
-  let appVersion = '', updateReady = false, versionTimer = 0, updateVersion = '', updateSize = 0;
+  // selfUpdates is off until the app says otherwise: Play builds update through
+  // the store, so there the version is a plain label with nothing to tap.
+  let appVersion = '', selfUpdates = false, updateReady = false, versionTimer = 0, updateVersion = '', updateSize = 0;
   function showVersion(text, st) {
     clearTimeout(versionTimer);
     $('version').hidden = false;
@@ -814,17 +816,19 @@
         $('quickBox').focus();
       } else if (m.type === 'info') {
         appVersion = m.version;
+        selfUpdates = m.updates === true;
+        $('version').disabled = !selfUpdates;
         const seen = read('seenVersion');
         write('seenVersion', appVersion);
-        if (!updateReady && seen && seen !== appVersion) {
+        if (selfUpdates && !updateReady && seen && seen !== appVersion) {
           showVersion(`Updated to v${appVersion}`, 'available');
           versionTimer = setTimeout(() => showVersion(`v${appVersion}`), 4000);
         } else if (!updateReady) showVersion(`v${appVersion}`);
-      } else if (m.type === 'updateStatus') {
+      } else if (m.type === 'updateStatus' && selfUpdates) {
         if (m.state === 'available') { updateReady = true; return showVersion('Update available', 'available'); }
         showVersion(m.state === 'latest' ? 'Up to date' : 'Couldn’t check');
         versionTimer = setTimeout(() => showVersion(`v${appVersion}`), 2500);
-      } else if (m.type === 'update') {
+      } else if (m.type === 'update' && selfUpdates) {
         if (m.state === 'available') { updateReady = true; showVersion('Update available', 'available'); }
         showUpdate(m);
       }
