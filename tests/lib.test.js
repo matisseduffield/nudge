@@ -117,7 +117,7 @@ test('reminders in the past are dropped, and a task with no time rings at nine',
 test('a repeating task keeps ringing, up to its end date', () => {
   const t = task({ due: '2026-11-07', time: '08:00', repeat: { every: 1, unit: 'day' }, reminders: [{ before: 0 }] });
   const f = L.firings(t, NOW);
-  assert.equal(f.length, 30);
+  assert.equal(f.length, 60);
   assert.equal(f[1].occ, '2026-11-08');
   const ending = task({ due: '2026-11-07', time: '08:00', repeat: { every: 1, unit: 'day', until: '2026-11-09' }, reminders: [{ before: 0 }] });
   assert.equal(L.firings(ending, NOW).length, 3);
@@ -177,6 +177,86 @@ test('today and upcoming sort things out', () => {
   assert.deepEqual(L.search(tasks, '  '), []);
 });
 
+test('quick add leaves everyday phrases alone', () => {
+  const same = ['Fix sat nav', 'Buy sun cream', 'Pack sat-nav', 'Look at 3 quotes', 'Meet at 10 Downing Street', 'Read John 3:16', 'Finish 3/4 of essay', '24/7 support ticket',
+    'Write weekly report', 'Daily standup notes', 'Morning walk', "Check today's rota", 'Long March 5 launch', 'Turn the heating on', 'Put kettle on', 'On call rota', 'By the sea walk'];
+  for (const text of same) {
+    const t = q(text);
+    assert.equal(t.title, text);
+    assert.deepEqual([t.due, t.time, t.repeat], [null, null, null], text);
+  }
+  assert.equal(q('Fix issue #12').title, 'Fix issue #12');
+  assert.equal(q('Fix issue #12').listName, null);
+  assert.equal(q('Gym sat').due, '2026-11-07');
+  assert.equal(q('Gym on sat').due, '2026-11-07');
+  assert.equal(q('Water plants daily 8am').repeat.unit, 'day');
+});
+
+test('part of the day settles the hour', () => {
+  const late = new Date(2026, 10, 6, 19, 0);
+  const p = text => L.parseQuick(text, late, lists);
+  assert.deepEqual([p('Call mum tonight at 9').time, p('Call mum tonight at 9').due], ['21:00', '2026-11-06']);
+  assert.equal(p('Dinner at 8 in the evening').time, '20:00');
+  assert.equal(p('Dinner at 8 in the evening').title, 'Dinner');
+  assert.equal(p('Gym in the morning').time, '09:00');
+  assert.equal(p('Gym tomorrow at 7 in the morning').time, '07:00');
+});
+
+test('quick add handles the awkward dates', () => {
+  const saturday = new Date(2026, 10, 7, 10, 0);
+  assert.equal(L.parseQuick('Standup every weekday', saturday, []).due, '2026-11-09');
+  assert.equal(L.parseQuick('Leap day 29 feb', new Date(2028, 2, 10), []).due, null);
+});
+
+test('a reminder always has a date to count back from', () => {
+  const t = L.makeTask({ title: 'Buy milk', remind: 60 }, NOW, {});
+  assert.equal(t.due, '2026-11-06');
+});
+
+test('Done on a later notification still counts, and an older one does not', () => {
+  const daily = task({ id: 'd', due: '2026-11-02', time: '09:00', repeat: { every: 1, unit: 'day' } });
+  const out = L.applyActions({ tasks: [daily] }, [{ type: 'done', task: 'd', occ: '2026-11-03', when: +new Date(2026, 10, 3, 9, 5) }], NOW);
+  assert.equal(out.tasks[0].due, '2026-11-04');
+  const old = L.applyActions(out, [{ type: 'done', task: 'd', occ: '2026-11-02', when: +NOW }], NOW);
+  assert.equal(old.tasks[0].due, '2026-11-04');
+  // A snooze from an old date doesn't ring on the new one.
+  assert.equal(L.applyActions(out, [{ type: 'snooze', task: 'd', occ: '2026-11-02', until: 5 }], NOW).tasks[0].snooze, null);
+});
+
+test('a long-ignored repeating task still rings', () => {
+  const t = task({ due: '2026-09-01', time: '09:00', repeat: { every: 1, unit: 'day' }, reminders: [{ before: 0 }] });
+  const f = L.firings(t, NOW);
+  assert.equal(f.length, 59);
+  assert.equal(f[0].at, '2026-11-07T09:00');
+});
+
+test('the phone says so before its plan runs out', () => {
+  const t = task({ due: '2026-11-07', time: '09:00', repeat: { every: 1, unit: 'day' }, reminders: [{ before: 0 }] });
+  const s = L.schedule({ tasks: [t], prefs: {}, lists: [] }, NOW);
+  const last = s[s.length - 1];
+  assert.equal(last.id, 'keep-going');
+  assert.equal(last.title, 'Open Nudge');
+  assert.ok(last.at > s[s.length - 2].at);
+  // A repeat with an end date just ends.
+  const ending = task({ due: '2026-11-07', time: '09:00', repeat: { every: 1, unit: 'day', until: '2026-11-09' }, reminders: [{ before: 0 }] });
+  assert.ok(!L.schedule({ tasks: [ending], prefs: {}, lists: [] }, NOW).some(x => x.id === 'keep-going'));
+});
+
+test('a notification reads right on the day it rings', () => {
+  const t = task({ due: '2026-11-07', time: '09:00', reminders: [{ before: 0 }, { before: 1440 }] });
+  const f = L.firings(t, NOW);
+  assert.equal(f.find(x => x.at === '2026-11-07T09:00').body, 'Today, 9am');
+  assert.equal(f.find(x => x.at === '2026-11-06T09:00') , undefined);
+  const later = task({ due: '2026-11-09', time: '14:00', reminders: [{ before: 1440 }] });
+  assert.equal(L.firings(later, NOW)[0].body, 'Tomorrow, 2pm');
+  assert.equal(L.firings(later, NOW, 60, true)[0].body, 'Tomorrow, 14:00');
+});
+
+test('a day before keeps its clock time', () => {
+  const t = task({ due: '2027-10-03', time: '09:00', reminders: [{ before: 1440 }, { before: 10080 }] });
+  assert.deepEqual(L.firings(t, NOW).map(f => f.at).sort(), ['2027-09-26T09:00', '2027-10-02T09:00']);
+});
+
 test('dates and times read naturally', () => {
   assert.equal(L.dayText('2026-11-06', NOW), 'Today');
   assert.equal(L.dayText('2026-11-07', NOW), 'Tomorrow');
@@ -200,4 +280,7 @@ test('a damaged save still opens', () => {
   assert.deepEqual(s.tasks[0].reminders, []);
   assert.equal(s.prefs.use24, true);
   assert.deepEqual(L.cleanState(null).tasks, []);
+  const broken = L.cleanState({ tasks: [{ id: 'b', title: 'x', due: 5, notes: null, subs: [null], reminders: [null, { before: 5 }], repeat: { unit: 'fortnight' } }] }).tasks[0];
+  assert.deepEqual([broken.due, broken.notes, broken.subs, broken.reminders, broken.repeat], [null, '', [], [{ before: 5 }], null]);
+  assert.doesNotThrow(() => L.schedule({ tasks: [broken], prefs: {} }, NOW));
 });

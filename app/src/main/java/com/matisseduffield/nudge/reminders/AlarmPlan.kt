@@ -33,19 +33,28 @@ object AlarmPlan {
     /** Past alarms are finished with, once [missed] has had them. */
     fun withoutPast(list: List<Alarm>, now: LocalDateTime) = list.filter { it.at.isAfter(now) }
 
-    /** After one rings it's gone, and Keep Nudging lines up the next. */
+    fun isNag(alarm: Alarm) = alarm.id.endsWith(NAG_SUFFIX)
+
+    /** After one rings it's gone, and Keep Nudging lines up the next: one chain per task. */
     fun afterRinging(list: List<Alarm>, rung: Alarm, now: LocalDateTime): List<Alarm> {
         val rest = list.filter { it.id != rung.id }
         if (rung.nag <= 0 || rung.summary) return rest
-        val again = rung.copy(id = rung.id.removeSuffix(NAG_SUFFIX) + NAG_SUFFIX, at = now.plusMinutes(rung.nag.toLong()))
+        val again = rung.copy(id = rung.task + NAG_SUFFIX, at = now.plusMinutes(rung.nag.toLong()))
         return rest.filter { it.id != again.id } + again
     }
 
-    /** Done clears this occurrence. A repeating task's later dates stay set. */
-    fun afterDone(list: List<Alarm>, task: String, occ: String) = list.filter { it.task != task || it.occ != occ }
+    /** Done clears this occurrence and any nudging. A repeating task's later dates stay set. */
+    fun afterDone(list: List<Alarm>, task: String, occ: String) =
+        list.filter { it.task != task || (it.occ != occ && !isNag(it)) }
 
     /** Dismissing stops the nudging, and leaves any other reminders alone. */
-    fun afterDismiss(list: List<Alarm>, task: String) = list.filter { it.task != task || !it.id.endsWith(NAG_SUFFIX) }
+    fun afterDismiss(list: List<Alarm>, task: String) = list.filter { it.task != task || !isNag(it) }
+
+    /** Alarms the phone must keep when the page sends a new list: ones due but not rung yet, and nudging. */
+    fun carriedOver(old: List<Alarm>, fresh: List<Alarm>, now: LocalDateTime, keep: (Alarm) -> Alarm?): List<Alarm> {
+        val ids = fresh.map { it.id }.toSet()
+        return old.filter { it.id !in ids && (isNag(it) || !it.at.isAfter(now)) }.mapNotNull(keep)
+    }
 
     /** Snoozing replaces the nudging with one alarm later on. */
     fun afterSnooze(list: List<Alarm>, rung: Alarm, until: LocalDateTime): List<Alarm> {

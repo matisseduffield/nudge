@@ -29,8 +29,8 @@
     write('state', state);
     const open = state.tasks.filter(L.isOpen);
     const t = L.today(state.tasks, now());
-    const lines = [...t.overdue, ...t.today].slice(0, 6).map(x => x.title);
-    toApp({ type: 'save', state: JSON.stringify(state), alarms: L.schedule(state, now()), widget: { count: t.overdue.length + t.today.length, lines } });
+    const items = [...t.overdue, ...t.today];
+    toApp({ type: 'save', state: JSON.stringify(state), alarms: L.schedule(state, now()), widget: { day: L.iso(now()), items: items.map(x => ({ id: x.id, title: x.title })) } });
     if (app && open.some(x => x.reminders.length) && health && !health.notifications && !read('askedNotify')) {
       write('askedNotify', true);
       toApp({ type: 'askNotifications' });
@@ -52,6 +52,8 @@
     $('toastText').textContent = text;
     $('toastUndo').hidden = !restore;
     $('toast').hidden = false;
+    // Over a page, the footer can't be reached, so the message goes on the page.
+    (openDialog() || document.querySelector('footer')).append($('toast'));
     toastTimer = setTimeout(() => { $('toast').hidden = true; undo = null; }, 5000);
   }
   $('toastUndo').addEventListener('click', () => {
@@ -321,7 +323,14 @@
     $('fNotes').value = t.notes;
     $('fDue').value = t.due || '';
     $('fTime').value = t.time || '';
-    $('fRepeat').value = t.repeat ? `${t.repeat.every || 1} ${t.repeat.unit}` : '';
+    // Quick add can make repeats the menu doesn't list, like every 3 days.
+    const repeat = t.repeat ? `${t.repeat.every || 1} ${t.repeat.unit}` : '';
+    if (repeat && ![...$('fRepeat').options].some(o => o.value === repeat)) {
+      const o = el('option', '', L.repeatText(t.repeat));
+      o.value = repeat;
+      $('fRepeat').append(o);
+    }
+    $('fRepeat').value = repeat;
     $('fUntil').value = t.repeat?.until || '';
     $('fNag').value = String(t.nag || 0);
     $('fPri').value = String(t.pri);
@@ -368,8 +377,14 @@
     const due = $('fDue').value || null;
     const t = task(editing);
     const change = { due, snooze: null };
-    if (!due) { change.time = null; change.repeat = null; $('fTime').value = ''; $('fRepeat').value = ''; }
-    else if (!t.due && !t.reminders.length && state.prefs.defaultReminder != null) change.reminders = [{ before: state.prefs.defaultReminder }];
+    if (!due) {
+      change.time = null;
+      change.repeat = null;
+      change.reminders = t.reminders.filter(r => r.before == null);   // nothing left to count back from
+      $('fTime').value = '';
+      $('fRepeat').value = '';
+    } else if (t.repeat?.dom) change.repeat = { ...t.repeat, dom: L.parseDay(due).getDate() };
+    if (due && !t.due && !t.reminders.length && state.prefs.defaultReminder != null) change.reminders = [{ before: state.prefs.defaultReminder }];
     edit(change);
   });
   $('fTime').addEventListener('change', () => {
@@ -509,8 +524,13 @@
   $('s24').addEventListener('change', () => pref({ use24: $('s24').checked }));
 
   // ---- Android app bridge (absent in a browser) ----
-  function show(id) { if (!$(id).open) $(id).showModal(); tellBack(); }
-  const openDialog = () => [...document.querySelectorAll('dialog[open]')].pop();
+  const stack = [];
+  function show(id) { if (!$(id).open) { $(id).showModal(); stack.push($(id)); } tellBack(); }
+  // The one on top, whichever order they sit in the page.
+  function openDialog() {
+    while (stack.length && !stack[stack.length - 1].open) stack.pop();
+    return stack[stack.length - 1];
+  }
   function toApp(msg) {
     if (!app) return;
     try { app.postMessage(JSON.stringify(msg)); } catch {}
@@ -582,7 +602,7 @@
       } else if (m.type === 'open') {
         if (m.task) openTask(m.task);
       } else if (m.type === 'focusAdd') {
-        window.nudgeBack();
+        while (window.nudgeBack());
         $('quickBox').focus();
       } else if (m.type === 'info') {
         appVersion = m.version;
@@ -619,6 +639,7 @@
   document.addEventListener('visibilitychange', () => { if (!document.hidden) checkDay(); });
 
   // ---- boot ----
-  render();
+  // Hello goes first, so a bad local copy can't stop the phone's good one arriving.
   if (app) toApp({ type: 'hello' }); else write('state', state);
+  render();
 })();

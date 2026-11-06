@@ -36,11 +36,11 @@ class AlarmPlanTest {
     @Test fun keepNudgingLinesUpTheNextOne() {
         val a = alarm("a", "t", "d", now, nag = 15)
         val first = AlarmPlan.afterRinging(listOf(a), a, now)
-        assertEquals(listOf("a#nag"), first.map { it.id })
+        assertEquals(listOf("t#nag"), first.map { it.id })
         assertEquals(now.plusMinutes(15), first.single().at)
         // And again, without piling up.
         val second = AlarmPlan.afterRinging(first, first.single(), now.plusMinutes(15))
-        assertEquals(listOf("a#nag"), second.map { it.id })
+        assertEquals(listOf("t#nag"), second.map { it.id })
         assertEquals(now.plusMinutes(30), second.single().at)
     }
 
@@ -52,11 +52,30 @@ class AlarmPlanTest {
     @Test fun doneClearsThisOccurrenceOnly() {
         val list = listOf(
             alarm("a", "t", "2026-11-06", now.plusHours(1)),
-            alarm("b#nag", "t", "2026-11-06", now.plusHours(2)),
+            alarm("t#nag", "t", "2026-11-05", now.plusHours(2)),
             alarm("c", "t", "2026-11-13", now.plusDays(7)),
             alarm("d", "other", "2026-11-06", now.plusHours(1)),
         )
         assertEquals(listOf("c", "d"), AlarmPlan.afterDone(list, "t", "2026-11-06").map { it.id })
+    }
+
+    @Test fun twoRemindersMakeOneChainOfNudges() {
+        val a = alarm("a", "t", "d", now, nag = 5)
+        val b = alarm("b", "t", "d", now, nag = 5)
+        val list = AlarmPlan.afterRinging(AlarmPlan.afterRinging(listOf(a, b), a, now), b, now)
+        assertEquals(listOf("t#nag"), list.map { it.id })
+    }
+
+    @Test fun missedAlarmsAndNudgingSurviveANewList() {
+        val due = alarm("due", "t", "d", now.minusMinutes(5))
+        val nag = alarm("t#nag", "t", "d", now.plusMinutes(5), nag = 5)
+        val later = alarm("later", "t", "d", now.plusHours(1))
+        val kept = AlarmPlan.carriedOver(listOf(due, nag, later), emptyList(), now) { it }
+        assertEquals(listOf("due", "t#nag"), kept.map { it.id })
+        // A task finished since doesn't keep them.
+        assertTrue(AlarmPlan.carriedOver(listOf(due, nag), emptyList(), now) { null }.isEmpty())
+        // Nor does an alarm the page has sent again.
+        assertEquals(listOf("t#nag"), AlarmPlan.carriedOver(listOf(due, nag), listOf(due), now) { it }.map { it.id })
     }
 
     @Test fun dismissStopsNudgingAndNothingElse() {

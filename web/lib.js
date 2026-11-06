@@ -19,6 +19,10 @@
   const NAMES = { sun: 0, mon: 1, tue: 2, tues: 2, wed: 3, thu: 4, thur: 4, thurs: 4, fri: 5, sat: 6 };
   WEEKDAYS.forEach((w, i) => { NAMES[w] = i; });
   const WEEKDAY = Object.keys(NAMES).sort((a, b) => b.length - a.length).join('|');
+  const LONG_DAY = WEEKDAYS.join('|');
+  const SHORT_DAY = Object.keys(NAMES).filter(n => !WEEKDAYS.includes(n)).sort((a, b) => b.length - a.length).join('|');
+  const END = '(?=\\s*$)';            // at the end of the line
+  const WHOLE = "(?![-'’/\\w])";      // a whole word, so today's and sat-nav don't count
   const MONTH = [...MONTHS, ...MONTHS.map(m => m.slice(0, 3)), 'sept'].sort((a, b) => b.length - a.length).join('|');
   const monthOf = m => MONTHS.findIndex(x => x.startsWith(m.slice(0, 3)));
 
@@ -76,7 +80,7 @@
       return true;
     };
 
-    take(/\s#([\p{L}\p{N}_-]+)(?=\s)/u, m => {
+    take(/\s#(\p{L}[\p{L}\p{N}_-]*)(?=\s)/u, m => {
       out.listName = m[1];
       const hit = lists.find(l => l.name.toLowerCase().replace(/\s+/g, '') === m[1].toLowerCase());
       out.list = hit ? hit.id : null;
@@ -86,17 +90,20 @@
       out.remind = Number(m[1]) * ({ m: 1, h: 60, d: 1440 }[m[2][0].toLowerCase()]);
     });
 
-    // Repeats.
+    // Repeats that say "every" are clear anywhere. "Weekly" alone only counts at the
+    // end of the line, later on, so "Write weekly report" stays a title.
     let onDay = null;
     take(new RegExp(`\\severy\\s+(${WEEKDAY})\\b`, 'i'), m => { out.repeat = { every: 1, unit: 'week' }; onDay = NAMES[m[1].toLowerCase()]; })
       || take(/\severy\s+(\d+)\s+(day|week|month|year)s?\b/i, m => { out.repeat = { every: Number(m[1]), unit: m[2].toLowerCase() }; })
       || take(/\severy\s+other\s+(day|week|month|year)\b/i, m => { out.repeat = { every: 2, unit: m[1].toLowerCase() }; })
       || take(/\severy\s+weekday\b/i, () => { out.repeat = { every: 1, unit: 'weekdays' }; })
-      || take(/\severy\s+(day|week|month|year)\b/i, m => { out.repeat = { every: 1, unit: m[1].toLowerCase() }; })
-      || take(/\s(daily|weekly|monthly|yearly|weekdays)\b/i, m => {
-        const word = m[1].toLowerCase();
-        out.repeat = word === 'weekdays' ? { every: 1, unit: 'weekdays' } : { every: 1, unit: { daily: 'day', weekly: 'week', monthly: 'month', yearly: 'year' }[word] };
-      });
+      || take(/\severy\s+(day|week|month|year)\b/i, m => { out.repeat = { every: 1, unit: m[1].toLowerCase() }; });
+
+    // Part of the day, which also settles "at 9" one way or the other.
+    let part = null, tonight = false;
+    take(new RegExp(`\\stonight${WHOLE}`, 'i'), () => { part = 'evening'; tonight = true; })
+      || take(/\sin the\s+(morning|afternoon|evening)\b/i, m => { part = m[1].toLowerCase(); })
+      || take(new RegExp(`\\s(morning|afternoon|evening)${END}`, 'i'), m => { part = m[1].toLowerCase(); });
 
     // Times.
     const clock = (h, m, half) => {
@@ -106,49 +113,70 @@
       out.time = `${pad(hour)}:${pad(Number(m || 0))}`;
       return true;
     };
+    const DATE_NEXT = `(?=\\s*$|\\s+(?:today|tomorrow|tmrw|tmr|on\\s|next\\s|in\\s+\\d|${LONG_DAY}|${SHORT_DAY}))`;
     take(/\s(?:at\s+)?(\d{1,2})(?:[:.](\d{2}))?\s*(am|pm)\b/i, m => clock(m[1], m[2], m[3]))
-      || take(/\s(?:at\s+)?(\d{1,2}):(\d{2})\b/, m => clock(m[1], m[2]))
-      || take(/\sat\s+(\d{1,2})\b/, m => { const h = Number(m[1]); return clock(h >= 1 && h <= 7 ? h + 12 : h, 0); })
+      || take(/\sat\s+(\d{1,2}):(\d{2})\b/, m => clock(m[1], m[2]))
+      || take(new RegExp(`\\s(\\d{2}):(\\d{2})${END}`), m => clock(m[1], m[2]))
+      || take(new RegExp(`\\sat\\s+(\\d{1,2})${DATE_NEXT}`), m => {
+        const h = Number(m[1]);
+        return clock(!part && h >= 1 && h <= 7 ? h + 12 : h, 0);
+      })
       || take(/\s(?:at\s+)?noon\b/i, () => { out.time = '12:00'; })
-      || take(/\s(?:at\s+)?midnight\b/i, () => { out.time = '00:00'; })
-      || take(/\s(?:in the\s+)?morning\b/i, () => { out.time = '09:00'; })
-      || take(/\s(?:in the\s+)?afternoon\b/i, () => { out.time = '15:00'; })
-      || take(/\s(?:in the\s+)?evening\b/i, () => { out.time = '18:00'; });
+      || take(/\s(?:at\s+)?midnight\b/i, () => { out.time = '00:00'; });
+    if (part && !out.time) out.time = tonight ? '20:00' : { morning: '09:00', afternoon: '15:00', evening: '18:00' }[part];
+    else if (part && part !== 'morning' && Number(out.time.slice(0, 2)) < 12) out.time = `${pad(Number(out.time.slice(0, 2)) + 12)}${out.time.slice(2)}`;
 
     // Dates.
     const dayOfYear = (d, mo) => {
       let when = new Date(now.getFullYear(), mo, d);
       if (when.getMonth() !== mo) return false;
       if (iso(when) < today) when = new Date(now.getFullYear() + 1, mo, d);
+      if (when.getMonth() !== mo) return false;   // 29 Feb, in a year without one
       out.due = iso(when);
       return true;
     };
-    take(/\s(?:today)\b/i, () => { out.due = today; })
-      || take(/\syesterday\b/i, () => { out.due = addDays(today, -1); })
-      || take(/\stonight\b/i, () => { out.due = today; out.time = out.time || '20:00'; })
-      || take(/\s(?:the\s+)?day after tomorrow\b/i, () => { out.due = addDays(today, 2); })
-      || take(/\s(?:tomorrow|tmrw|tmr)\b/i, () => { out.due = addDays(today, 1); })
+    const weekday = m => {
+      const next = nextWeekday(today, NAMES[m[2].toLowerCase()]);
+      out.due = m[1] && daysBetween(today, next) < 7 ? addDays(next, 7) : next;
+    };
+    if (tonight) out.due = today;
+    take(new RegExp(`\\stoday${WHOLE}`, 'i'), () => { out.due = today; })
+      || take(new RegExp(`\\syesterday${WHOLE}`, 'i'), () => { out.due = addDays(today, -1); })
+      || take(new RegExp(`\\s(?:the\\s+)?day after tomorrow${WHOLE}`, 'i'), () => { out.due = addDays(today, 2); })
+      || take(new RegExp(`\\s(?:tomorrow|tmrw|tmr)${WHOLE}`, 'i'), () => { out.due = addDays(today, 1); })
       || take(/\snext week\b/i, () => { out.due = addDays(today, 7); })
       || take(/\snext month\b/i, () => { out.due = addMonths(today, 1); })
       || take(/\sin\s+(\d+)\s+(day|week|month)s?\b/i, m => {
         const n = Number(m[1]), unit = m[2].toLowerCase();
         out.due = unit === 'month' ? addMonths(today, n) : addDays(today, n * (unit === 'week' ? 7 : 1));
       })
-      || take(new RegExp(`\\s(?:on\\s+)?(next\\s+)?(${WEEKDAY})\\b`, 'i'), m => {
-        const next = nextWeekday(today, NAMES[m[2].toLowerCase()]);
-        out.due = m[1] && daysBetween(today, next) < 7 ? addDays(next, 7) : next;
-      })
-      || take(new RegExp(`\\s(?:on\\s+)?(\\d{1,2})(?:st|nd|rd|th)?\\s+(${MONTH})\\b`, 'i'), m => dayOfYear(Number(m[1]), monthOf(m[2].toLowerCase())))
-      || take(new RegExp(`\\s(?:on\\s+)?(${MONTH})\\s+(\\d{1,2})(?:st|nd|rd|th)?\\b`, 'i'), m => dayOfYear(Number(m[2]), monthOf(m[1].toLowerCase())))
-      || take(/\s(?:on\s+)?(\d{1,2})\/(\d{1,2})\b/, m => dayOfYear(Number(m[1]), Number(m[2]) - 1));
+      // Sat and sun are ordinary words, so short names need "on" or the end of the line.
+      || take(new RegExp(`\\s(?:on\\s+)?(next\\s+)?(${LONG_DAY})${WHOLE}`, 'i'), weekday)
+      || take(new RegExp(`\\s(?:on\\s+|(next)\\s+)(${SHORT_DAY})${WHOLE}`, 'i'), weekday)
+      || take(new RegExp(`\\s()(${SHORT_DAY})${END}`, 'i'), weekday)
+      || take(new RegExp(`\\son\\s+(\\d{1,2})(?:st|nd|rd|th)?\\s+(${MONTH})\\b`, 'i'), m => dayOfYear(Number(m[1]), monthOf(m[2].toLowerCase())))
+      || take(new RegExp(`\\s(\\d{1,2})(?:st|nd|rd|th)?\\s+(${MONTH})${END}`, 'i'), m => dayOfYear(Number(m[1]), monthOf(m[2].toLowerCase())))
+      || take(new RegExp(`\\son\\s+(${MONTH})\\s+(\\d{1,2})(?:st|nd|rd|th)?\\b`, 'i'), m => dayOfYear(Number(m[2]), monthOf(m[1].toLowerCase())))
+      || take(new RegExp(`\\s(${MONTH})\\s+(\\d{1,2})(?:st|nd|rd|th)?${END}`, 'i'), m => dayOfYear(Number(m[2]), monthOf(m[1].toLowerCase())))
+      || take(/\son\s+(\d{1,2})\/(\d{1,2})\b/, m => dayOfYear(Number(m[1]), Number(m[2]) - 1))
+      || take(new RegExp(`\\s(\\d{1,2})/(\\d{1,2})${END}`), m => dayOfYear(Number(m[1]), Number(m[2]) - 1));
+
+    if (!out.repeat) {
+      take(new RegExp(`\\s(daily|weekly|monthly|yearly|weekdays)${END}`, 'i'), m => {
+        const word = m[1].toLowerCase();
+        out.repeat = word === 'weekdays' ? { every: 1, unit: 'weekdays' } : { every: 1, unit: { daily: 'day', weekly: 'week', monthly: 'month', yearly: 'year' }[word] };
+      });
+    }
 
     if (onDay !== null && !out.due) out.due = parseDay(today).getDay() === onDay ? today : nextWeekday(today, onDay);
     if (out.repeat && !out.due) out.due = today;
+    if (out.repeat?.unit === 'weekdays' && [0, 6].includes(parseDay(out.due).getDay())) out.due = nextDate(out.due, out.repeat);
     // A time alone means the next time that clock comes round.
     if (out.time && !out.due) out.due = atTime(today, out.time) > now ? today : addDays(today, 1);
     if (out.repeat && ['month', 'year'].includes(out.repeat.unit) && out.due) out.repeat.dom = parseDay(out.due).getDate();
 
-    out.title = t.replace(/\s+/g, ' ').trim().replace(/\s+(on|at|by)$/i, '').replace(/^(on|at|by)\s+/i, '');
+    out.title = t.replace(/\s+/g, ' ').trim();
+    if (out.due || out.time) out.title = out.title.replace(/\s+(on|at|by)$/i, '').replace(/^(on|at|by)\s+/i, '');
     return out;
   }
 
@@ -160,7 +188,7 @@
     const reminders = fields.remind != null ? [{ before: fields.remind }]
       : fields.due && prefs.defaultReminder != null ? [{ before: prefs.defaultReminder }] : [];
     return {
-      id: newId(now), title: fields.title, notes: '', list: fields.list || null, due: fields.due || null, time: fields.time || null,
+      id: newId(now), title: fields.title, notes: '', list: fields.list || null, due: fields.due || (fields.remind != null ? iso(now) : null), time: fields.time || null,
       pri: fields.pri || 0, repeat: fields.repeat || null, reminders, nag: 0, subs: [], done: null, deleted: null, snooze: null, created: +now,
     };
   }
@@ -180,59 +208,82 @@
     return { ...task, done: +now, snooze: null };
   }
 
-  // Dates a task falls on from its due date, for working out alarms.
-  function occurrences(task, limit) {
+  // Dates a task falls on, for working out alarms. An old unticked task counts from
+  // `from`, or its dates would all be used up in the past.
+  function occurrences(task, limit, from) {
     const out = [];
     let day = task.due;
-    while (day && out.length < limit) {
+    for (let guard = 0; day && out.length < limit && guard < 20000; guard++) {
       if (task.repeat?.until && day > task.repeat.until) break;
-      out.push(day);
+      if (!from || day >= from || !task.repeat) out.push(day);
       if (!task.repeat) break;
       day = nextDate(day, task.repeat);
     }
     return out;
   }
 
-  // Every alarm a task should raise from now on.
-  function firings(task, now, limit = 30) {
+  // When a reminder rings. Days and weeks before keep the clock time, even across a
+  // change of daylight saving.
+  function ringTime(occ, time, before) {
+    if (before % 1440 === 0) return atTime(addDays(occ, -before / 1440), time);
+    return new Date(atTime(occ, time) - before * 6e4);
+  }
+
+  // Every alarm a task should raise from now on. The text is written for the moment
+  // it rings, not the moment it's saved.
+  function firings(task, now, limit = 60, use24 = false) {
     if (!isOpen(task)) return [];
     const out = [];
-    const body = when => [dayText(iso(when), now), task.time ? timeText(task.time) : ''].filter(Boolean).join(', ');
-    const add = (when, occ, due) => {
-      if (when > now) out.push({ id: `${task.id}|${local(when)}`, task: task.id, occ, at: local(when), title: task.title, body: due ? body(due) : '', nag: task.nag || 0 });
+    const body = (when, day) => (day ? [dayText(day, when), timeText(task.time, use24)].filter(Boolean).join(', ') : '');
+    const add = (when, occ) => {
+      if (when > now) out.push({ id: `${task.id}|${local(when)}`, task: task.id, occ, at: local(when), title: task.title, body: body(when, occ), nag: task.nag || 0 });
     };
-    for (const occ of occurrences(task, limit)) {
-      const due = atTime(occ, task.time);
-      for (const r of task.reminders) if (r.before != null) add(new Date(due - r.before * 6e4), occ, due);
+    for (const occ of occurrences(task, limit, iso(now))) {
+      for (const r of task.reminders) if (r.before != null) add(ringTime(occ, task.time, r.before), occ);
     }
-    for (const r of task.reminders) if (r.at) add(new Date(r.at), task.due || '', task.due ? atTime(task.due, task.time) : null);
-    if (task.snooze) add(new Date(task.snooze), task.due || '', task.due ? atTime(task.due, task.time) : null);
+    for (const r of task.reminders) if (r.at) add(new Date(r.at), task.due || '');
+    if (task.snooze) add(new Date(task.snooze), task.due || '');
     return out;
   }
 
-  const onDay = (task, day) => occurrences(task, 40).includes(day);
+  const onDay = (task, day) => occurrences(task, 1, day)[0] === day;
 
   // The whole list the phone is given, soonest first. Two reminders can't share a
   // minute for one task, and a morning summary rides along for the next fortnight.
   function schedule(state, now) {
+    const use24 = !!state.prefs?.use24;
     const seen = new Set();
-    const out = [];
-    for (const task of state.tasks) for (const f of firings(task, now)) {
+    let out = [];
+    for (const task of state.tasks) for (const f of firings(task, now, 60, use24)) {
       if (!seen.has(f.id)) { seen.add(f.id); out.push(f); }
     }
     const time = state.prefs?.summary;
+    let lastSummary = null;
     if (time) {
-      for (let i = 0; i < 14; i++) {
+      for (let i = 0; i < 30; i++) {
         const day = addDays(iso(now), i);
         const when = atTime(day, time);
         if (when <= now) continue;
         const open = state.tasks.filter(t => isOpen(t) && t.due && (onDay(t, day) || (i === 0 && t.due < day)));
+        lastSummary = local(when);
         if (!open.length) continue;
         const names = open.slice(0, 3).map(t => t.title).join(', ');
         out.push({ id: `summary|${day}`, task: '', occ: '', at: local(when), title: `${open.length} ${open.length === 1 ? 'task' : 'tasks'} today`, body: names, nag: 0, summary: true });
       }
     }
-    return out.sort((a, b) => (a.at < b.at ? -1 : 1)).slice(0, 400);
+    out = out.sort((a, b) => (a.at < b.at ? -1 : 1)).slice(0, 800);
+
+    // Only the page can plan further ahead. If it isn't opened for a month or two,
+    // the last thing the phone does is say so, rather than going quiet.
+    const ends = state.tasks.filter(t => isOpen(t) && t.repeat && !t.repeat.until && t.reminders.some(r => r.before != null))
+      .map(t => out.filter(f => f.task === t.id).pop()?.at).filter(Boolean);
+    if (lastSummary) ends.push(lastSummary);
+    if (ends.length) {
+      const when = new Date(new Date(ends.sort()[0]).getTime() + 6e4);
+      out.push({ id: 'keep-going', task: '', occ: '', at: local(when), title: 'Open Nudge', body: 'Open the app to keep your repeating reminders going.', nag: 0, summary: true });
+      out.sort((a, b) => (a.at < b.at ? -1 : 1));
+    }
+    return out;
   }
 
   // What was tapped on a notification while the app was closed.
@@ -241,8 +292,13 @@
     for (const a of actions) {
       tasks = tasks.map(t => {
         if (t.id !== a.task || !isOpen(t)) return t;
-        if (a.type === 'done' && (!t.repeat || t.due === a.occ)) return complete(t, new Date(a.when || now));
-        if (a.type === 'snooze') return { ...t, snooze: a.until };
+        // An old notification tapped late can't undo what's happened since.
+        const stale = t.repeat && a.occ < t.due;
+        if (a.type === 'done') {
+          if (stale) return t;
+          return complete(t.repeat ? { ...t, due: a.occ } : t, new Date(a.when || now));
+        }
+        if (a.type === 'snooze' && !stale) return { ...t, snooze: a.until };
         return t;
       });
     }
@@ -306,9 +362,27 @@
   // Keeps a save usable whatever happened to it.
   function cleanState(saved) {
     const s = saved && typeof saved === 'object' ? saved : {};
+    const day = v => (typeof v === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(v) ? v : null);
+    const hm = v => (typeof v === 'string' && /^\d{2}:\d{2}$/.test(v) ? v : null);
+    const stamp = v => (Number.isFinite(v) ? v : null);
+    const units = ['day', 'week', 'month', 'year', 'weekdays'];
     const lists = Array.isArray(s.lists) ? s.lists.filter(l => l && l.id && typeof l.name === 'string') : [];
-    const tasks = (Array.isArray(s.tasks) ? s.tasks : []).filter(t => t && t.id && typeof t.title === 'string')
-      .map(t => ({ notes: '', list: null, due: null, time: null, pri: 0, repeat: null, nag: 0, done: null, deleted: null, snooze: null, created: 0, ...t, reminders: Array.isArray(t.reminders) ? t.reminders : [], subs: Array.isArray(t.subs) ? t.subs : [] }));
+    const tasks = (Array.isArray(s.tasks) ? s.tasks : []).filter(t => t && t.id && typeof t.title === 'string').map(t => ({
+      ...t,
+      notes: typeof t.notes === 'string' ? t.notes : '',
+      list: typeof t.list === 'string' ? t.list : null,
+      due: day(t.due),
+      time: day(t.due) ? hm(t.time) : null,
+      pri: [1, 2].includes(t.pri) ? t.pri : 0,
+      repeat: day(t.due) && t.repeat && units.includes(t.repeat.unit) ? t.repeat : null,
+      nag: Number.isFinite(t.nag) ? t.nag : 0,
+      done: stamp(t.done),
+      deleted: stamp(t.deleted),
+      snooze: stamp(t.snooze),
+      created: stamp(t.created) || 0,
+      reminders: (Array.isArray(t.reminders) ? t.reminders : []).filter(r => r && (Number.isFinite(r.before) || typeof r.at === 'string')),
+      subs: (Array.isArray(t.subs) ? t.subs : []).filter(x => x && typeof x.title === 'string'),
+    }));
     return { lists, tasks, prefs: { summary: null, defaultReminder: 0, use24: false, ...(s.prefs || {}) } };
   }
 

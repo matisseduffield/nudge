@@ -3,8 +3,7 @@ name: Build & Release APK
 # Pushing a v* tag builds a signed APK, attaches it to a release here, and
 # publishes it with latest.json to the public nudge-releases repo, which is
 # where installed apps look for updates (this repo is private, so phones
-# can't read its releases). The pages (web/) go there too: the `nudge`
-# Worker serves the browser version from them.
+# can't read its releases).
 on:
   push:
     tags: ["v*"]
@@ -106,8 +105,6 @@ jobs:
 
           RAW="https://raw.githubusercontent.com/matisseduffield/nudge-releases/main"
           mkdir pub && cp "$APK_NAME" pub/ && cp "$APK_NAME" pub/Nudge.apk
-          # The pages and their files, served to browsers by the `nudge` Worker.
-          cp -r web pub/web
           cd pub
           SHA=$(sha256sum "$APK_NAME" | cut -d' ' -f1)
           SIZE=$(stat -c%s "$APK_NAME")
@@ -123,8 +120,7 @@ jobs:
             echo
             echo "Signed Android builds of Nudge: to-do lists with reminders that ring."
             echo "Free, no ads."
-            echo "Installed copies update themselves from here. In a browser:"
-            echo "https://nudge.matisseduffield.workers.dev"
+            echo "Installed copies update themselves from here."
             echo
             echo "**[Download Nudge $VERSION_NAME]($RAW/Nudge.apk)**"
             echo

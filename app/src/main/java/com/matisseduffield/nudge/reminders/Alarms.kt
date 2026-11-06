@@ -9,10 +9,12 @@ import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.os.Build
+import android.os.Bundle
 import androidx.core.app.NotificationCompat
 import androidx.core.net.toUri
 import com.matisseduffield.nudge.MainActivity
 import com.matisseduffield.nudge.R
+import com.matisseduffield.nudge.widget.TodayWidget
 import org.json.JSONArray
 import org.json.JSONObject
 import java.time.LocalDateTime
@@ -27,7 +29,9 @@ object Alarms {
     const val ACTION_SNOOZE = "com.matisseduffield.nudge.SNOOZE"
     const val ACTION_DISMISS = "com.matisseduffield.nudge.DISMISS"
     const val EXTRA_MINUTES = "minutes"
-    private const val CHANNEL = "reminders"
+    const val CHANNEL = "reminders"
+    private const val EXTRA_OCC = "nudge.occ"
+    private const val NOTIFICATION = 2
     private const val SUMMARY_CHANNEL = "summary"
     private const val SUMMARY_ID = 1
     private val lock = Any()
@@ -48,32 +52,59 @@ object Alarms {
 
     /** The page's new list. */
     fun replace(context: Context, array: JSONArray) = synchronized(lock) {
+        val now = LocalDateTime.now()
+        val tasks = openTasks(context)
         val fresh = (0 until array.length()).mapNotNull { i -> array.optJSONObject(i)?.let(Store::parse) }
-        // Nudging and snoozes in progress belong to the phone, unless the page has taken them over.
-        val mine = Store.readAlarms(context).filter { it.id.endsWith("#nag") }
-            .filter { old -> fresh.any { it.task == old.task && it.occ == old.occ } || old.task.isNotEmpty() && stillOpen(context, old) }
-        Store.writeAlarms(context, fresh + mine)
+        val kept = AlarmPlan.carriedOver(Store.readAlarms(context), fresh, now) { keep(it, tasks) }
+        Store.writeAlarms(context, (fresh + kept).distinctBy { it.id })
+        clearFinished(context, tasks)
         arm(context)
     }
 
-    // Nudging stops as soon as the task isn't open any more.
-    private fun stillOpen(context: Context, alarm: Alarm): Boolean {
-        val tasks = Store.readState(context)?.let { runCatching { JSONObject(it).optJSONArray("tasks") }.getOrNull() } ?: return false
-        for (i in 0 until tasks.length()) {
-            val task = tasks.optJSONObject(i) ?: continue
-            if (task.optString("id") != alarm.task) continue
-            return task.isNull("done") && task.isNull("deleted") && task.optString("due") == alarm.occ
+    /** The tasks still to do, by id, from what the page last saved. */
+    private fun openTasks(context: Context): Map<String, JSONObject> {
+        val list = Store.readState(context)?.let { runCatching { JSONObject(it).optJSONArray("tasks") }.getOrNull() } ?: return emptyMap()
+        return (0 until list.length()).mapNotNull { list.optJSONObject(it) }
+            .filter { it.isNull("done") && it.isNull("deleted") }
+            .associateBy { it.optString("id") }
+    }
+
+    private fun dueOf(task: JSONObject) = if (task.isNull("due")) "" else task.optString("due")
+
+    // An alarm's date has been ticked off once the task has moved past it.
+    private fun current(task: JSONObject?, occ: String) = task != null && occ >= dueOf(task)
+
+    // What survives a new list from the page. Nudging takes the task's latest title and
+    // interval, and stops if that's been switched off.
+    private fun keep(alarm: Alarm, tasks: Map<String, JSONObject>): Alarm? {
+        if (alarm.summary) return alarm
+        val task = tasks[alarm.task]
+        if (!current(task, alarm.occ)) return null
+        if (!AlarmPlan.isNag(alarm)) return alarm
+        val nag = task!!.optInt("nag")
+        val reminders = task.optJSONArray("reminders")?.length() ?: 0
+        return if (nag > 0 && reminders > 0) alarm.copy(title = task.optString("title"), nag = nag) else null
+    }
+
+    // A notification for something finished in the app shouldn't stay up.
+    private fun clearFinished(context: Context, tasks: Map<String, JSONObject>) {
+        val manager = context.getSystemService(NotificationManager::class.java)
+        for (shown in manager.activeNotifications) {
+            val task = shown.tag ?: continue
+            val occ = shown.notification.extras.getString(EXTRA_OCC).orEmpty()
+            if (!current(tasks[task], occ)) manager.cancel(task, NOTIFICATION)
         }
-        return false
     }
 
     /** Sets the soonest alarms, and rings any that were missed. Safe to call any time. */
     fun arm(context: Context) = synchronized(lock) {
         val now = LocalDateTime.now()
         val all = Store.readAlarms(context)
-        AlarmPlan.missed(all, now).forEach { show(context, it) }
-        val kept = AlarmPlan.withoutPast(all, now)
-        if (kept.size != all.size) Store.writeAlarms(context, kept)
+        val missed = AlarmPlan.missed(all, now)
+        missed.forEach { show(context, it) }
+        // A missed alarm rang all the same, so Keep Nudging carries on from it.
+        val kept = missed.fold(AlarmPlan.withoutPast(all, now)) { list, alarm -> AlarmPlan.afterRinging(list, alarm, now) }
+        if (kept != all) Store.writeAlarms(context, kept)
 
         val manager = context.getSystemService(AlarmManager::class.java)
         val armed = AlarmPlan.toArm(kept, now)
@@ -103,18 +134,21 @@ object Alarms {
             cancel(context, task)
             arm(context)
         }
+        TodayWidget.taskDone(context, task)
         Store.addAction(context, JSONObject().put("type", "done").put("task", task).put("occ", occ).put("when", System.currentTimeMillis()))
     }
 
     fun snooze(context: Context, task: String, occ: String, title: String, body: String, minutes: Long) {
         val until = LocalDateTime.now().plusMinutes(minutes)
+        // Finished in the app since it rang: there's nothing to snooze.
+        if (!current(openTasks(context)[task], occ)) return cancel(context, task)
         synchronized(lock) {
             val rung = Alarm(task, task, occ, until, title, body, 0)
             Store.writeAlarms(context, AlarmPlan.afterSnooze(Store.readAlarms(context), rung, until))
             cancel(context, task)
             arm(context)
         }
-        Store.addAction(context, JSONObject().put("type", "snooze").put("task", task).put("until", millis(until)))
+        Store.addAction(context, JSONObject().put("type", "snooze").put("task", task).put("occ", occ).put("until", millis(until)))
     }
 
     fun dismiss(context: Context, task: String) = synchronized(lock) {
@@ -122,10 +156,10 @@ object Alarms {
         arm(context)
     }
 
-    private fun notificationId(task: String) = task.hashCode() or 0x40000000
+    private fun requestCode(task: String) = task.hashCode() and 0x3fffffff
 
     private fun cancel(context: Context, task: String) {
-        context.getSystemService(NotificationManager::class.java).cancel(notificationId(task))
+        context.getSystemService(NotificationManager::class.java).cancel(task, NOTIFICATION)
     }
 
     private fun channels(context: Context) {
@@ -143,7 +177,7 @@ object Alarms {
             .putExtra("title", alarm.title)
             .putExtra("body", alarm.body)
             .putExtra(EXTRA_MINUTES, minutes)
-        return PendingIntent.getBroadcast(context, notificationId(alarm.task) + code, intent, PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
+        return PendingIntent.getBroadcast(context, requestCode(alarm.task) + code, intent, PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
     }
 
     private fun show(context: Context, alarm: Alarm) {
@@ -153,7 +187,7 @@ object Alarms {
             .setFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_SINGLE_TOP)
             .setData("nudge://open/${alarm.task}".toUri())
             .putExtra(EXTRA_TASK, alarm.task)
-        val tap = PendingIntent.getActivity(context, notificationId(alarm.task), open, PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
+        val tap = PendingIntent.getActivity(context, requestCode(alarm.task), open, PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
         val builder = NotificationCompat.Builder(context, if (alarm.summary) SUMMARY_CHANNEL else CHANNEL)
             .setSmallIcon(R.drawable.ic_notify)
             .setContentTitle(alarm.title)
@@ -161,6 +195,7 @@ object Alarms {
             .setStyle(NotificationCompat.BigTextStyle().bigText(alarm.body))
             .setContentIntent(tap)
             .setAutoCancel(true)
+            .addExtras(Bundle().apply { putString(EXTRA_OCC, alarm.occ) })
         val manager = context.getSystemService(NotificationManager::class.java)
         if (alarm.summary) {
             manager.notify(SUMMARY_ID, builder.build())
@@ -173,6 +208,6 @@ object Alarms {
             .addAction(0, "Done", action(context, ACTION_DONE, alarm, 2))
             .addAction(0, "10 min", action(context, ACTION_SNOOZE, alarm, 3, 10))
             .addAction(0, "1 hour", action(context, ACTION_SNOOZE, alarm, 4, 60))
-        manager.notify(notificationId(alarm.task), builder.build())
+        manager.notify(alarm.task, NOTIFICATION, builder.build())
     }
 }

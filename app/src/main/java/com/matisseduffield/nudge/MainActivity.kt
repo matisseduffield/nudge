@@ -180,7 +180,8 @@ class MainActivity : ComponentActivity() {
                 }
             })
         }
-        readIntent(intent)
+        // After a rebuild, such as a dark mode switch, the old tap has been dealt with.
+        if (savedInstanceState == null) readIntent(intent)
         web.loadUrl(START_URL)
 
         // A downloaded update has done its job once the new version is running.
@@ -262,10 +263,16 @@ class MainActivity : ComponentActivity() {
         send(
             JSONObject()
                 .put("type", "health")
-                .put("notifications", notifications && getSystemService(android.app.NotificationManager::class.java).areNotificationsEnabled())
+                .put("notifications", notifications && notificationsOn())
                 .put("exact", Alarms.canBeExact(this))
                 .put("battery", power.isIgnoringBatteryOptimizations(packageName)),
         )
+    }
+
+    private fun notificationsOn(): Boolean {
+        val manager = getSystemService(android.app.NotificationManager::class.java)
+        val channel = manager.getNotificationChannel(Alarms.CHANNEL)
+        return manager.areNotificationsEnabled() && channel?.importance != android.app.NotificationManager.IMPORTANCE_NONE
     }
 
     private fun openSettingsFor(what: String) {
