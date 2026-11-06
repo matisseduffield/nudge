@@ -2,6 +2,7 @@ package com.matisseduffield.nudge.reminders
 
 import android.Manifest
 import android.app.AlarmManager
+import android.app.KeyguardManager
 import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.PendingIntent
@@ -12,6 +13,7 @@ import android.media.AudioAttributes
 import android.media.RingtoneManager
 import android.os.Build
 import android.os.Bundle
+import android.os.PowerManager
 import android.provider.Settings
 import androidx.core.app.NotificationCompat
 import androidx.core.net.toUri
@@ -178,6 +180,7 @@ object Alarms {
         val manager = context.getSystemService(NotificationManager::class.java)
         if (task.isEmpty()) {
             manager.cancel(TEST_NOTIFICATION)
+            AlarmOverlay.close(context, task)
             return AlarmActivity.close(task)
         }
         dismiss(context, task)
@@ -194,6 +197,7 @@ object Alarms {
     private fun cancel(context: Context, task: String) {
         context.getSystemService(NotificationManager::class.java).cancel(task, NOTIFICATION)
         AlarmActivity.close(task)
+        AlarmOverlay.close(context, task)
     }
 
     /** Whether an urgent task's notification is still up, for the page's queue. */
@@ -225,7 +229,7 @@ object Alarms {
     }
 
     // The full page, ringing over everything. Android shows it by itself on a locked
-    // phone. On one in use it only shows a banner, unless we may draw over other apps.
+    // phone. On one in use it only shows a banner, so AlarmOverlay takes over there.
     private fun showLoud(context: Context, alarm: Alarm) {
         val test = alarm.id == AlarmPlan.TEST_ID
         val page = Intent(context, AlarmActivity::class.java)
@@ -259,7 +263,12 @@ object Alarms {
         val notification = builder.build().apply { flags = flags or android.app.Notification.FLAG_INSISTENT }
         val manager = context.getSystemService(NotificationManager::class.java)
         if (test) manager.notify(TEST_NOTIFICATION, notification) else manager.notify(alarm.task, NOTIFICATION, notification)
-        if (Settings.canDrawOverlays(context)) runCatching { context.startActivity(page) }
+        // On a phone in use, Android would stop at a banner, so draw over the screen.
+        val locked = context.getSystemService(KeyguardManager::class.java).isKeyguardLocked ||
+            !context.getSystemService(PowerManager::class.java).isInteractive
+        if (!locked && Settings.canDrawOverlays(context) && !AlarmOverlay.show(context, alarm)) {
+            runCatching { context.startActivity(page) }
+        }
     }
 
     private fun action(context: Context, name: String, alarm: Alarm, code: Int, minutes: Long = 0): PendingIntent {

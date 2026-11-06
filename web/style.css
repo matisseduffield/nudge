@@ -71,7 +71,8 @@ p, h1, h2 { margin: 0; }
 .update-track span { display: block; height: 100%; width: 0; border-radius: 3px; background: var(--accent); transition: width .2s; }
 .update-pct { min-width: 3.2ch; text-align: right; font-size: .86rem; font-weight: 600; }
 
-.warn { flex: none; margin-top: 8px; padding: 9px 12px; background: var(--neg-soft); border-radius: 8px; font-size: .86rem; font-weight: 600; color: var(--neg); text-align: left; cursor: pointer; }
+.warn { flex: none; margin-top: 8px; padding: 9px 12px; background: var(--neg-soft); border: 0; border-radius: 8px; font-size: .86rem; font-weight: 600; color: var(--neg); text-align: left; cursor: pointer; }
+.form .warn { margin-top: 0; }
 
 /* ---- tasks ---- */
 .view { flex: 1; min-height: 0; overflow: hidden auto; overscroll-behavior: contain; scrollbar-width: none; padding-bottom: 8px; }

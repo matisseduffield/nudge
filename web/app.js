@@ -472,6 +472,7 @@
     $('fUntilWrap').hidden = !t.repeat;
     $('fUntil').value = t.repeat?.until || '';
     $('fLoud').checked = !!t.loud && t.reminders.length > 0;
+    renderLoudFix();
     $('fUntil').value = t.repeat?.until || '';
     const days = t.repeat?.unit === 'days' ? t.repeat.days || [] : null;
     $('fDays').hidden = !days;
@@ -673,8 +674,31 @@
     );
   }
   $('warn').addEventListener('click', () => openSettings());
+
+  // What's stopping an urgent task taking over the screen, if anything.
+  function loudBlocker() {
+    if (!health) return null;
+    if (!health.overlay) return { what: 'overlay', text: 'Allow Show over other apps, or this stays a banner while you’re using your phone. Tap to turn it on.' };
+    if (!health.fullScreen) return { what: 'fullscreen', text: 'Allow full-screen alarms, or this won’t show on the lock screen. Tap to turn it on.' };
+    return null;
+  }
+  function renderLoudFix() {
+    const need = editing && task(editing)?.loud ? loudBlocker() : null;
+    $('fLoudFix').hidden = !need;
+    if (need) $('fLoudFix').textContent = need.text;
+  }
+  $('fLoudFix').addEventListener('click', () => {
+    const need = loudBlocker();
+    if (need) toApp({ type: 'openSettings', what: need.what });
+  });
   for (const [id, loud] of [['testBtn', false], ['testLoudBtn', true]]) {
     $(id).addEventListener('click', () => {
+      // A test that can't take over the screen would only look broken.
+      const need = loud ? loudBlocker() : null;
+      if (need) {
+        say(need.what === 'overlay' ? 'Allow Show over other apps, then test again.' : 'Allow full-screen alarms, then test again.');
+        return toApp({ type: 'openSettings', what: need.what });
+      }
       toApp({ type: 'testAlarm', loud });
       say('It rings in about a minute. You can close the app.');
     });
@@ -782,6 +806,7 @@
       else if (m.type === 'health') {
         health = m;
         renderHealth();
+        renderLoudFix();
       } else if (m.type === 'open') {
         if (m.task) openTask(m.task);
       } else if (m.type === 'focusAdd') {
