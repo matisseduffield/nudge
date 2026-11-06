@@ -9,6 +9,7 @@
     tick: '<svg width="13" height="13" viewBox="0 0 13 13" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m2.5 7 3 3 5-6.5"/></svg>',
     bell: '<svg width="11" height="11" viewBox="0 0 12 12" fill="currentColor" aria-hidden="true"><path d="M6 1a3.6 3.6 0 0 0-3.6 3.6c0 2.6-1 3.6-1.4 4h10c-.4-.4-1.4-1.4-1.4-4A3.6 3.6 0 0 0 6 1Zm-1.3 9a1.4 1.4 0 0 0 2.6 0z"/></svg>',
     repeat: '<svg width="11" height="11" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2 5.5A3.5 3.5 0 0 1 5.5 2H9M7.5.5 9 2 7.5 3.5M10 6.5A3.5 3.5 0 0 1 6.5 10H3M4.5 11.5 3 10l1.5-1.5"/></svg>',
+    grip: '<svg width="16" height="10" viewBox="0 0 16 10" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" aria-hidden="true"><path d="M1 1h14M1 5h14M1 9h14"/></svg>',
     cross: '<svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="m2.5 2.5 7 7M9.5 2.5l-7 7"/></svg>',
   };
 
@@ -18,7 +19,7 @@
   // first screen something to draw straight away.
   const read = k => { try { return JSON.parse(localStorage.getItem('nudge.' + k)); } catch { return null; } };
   const write = (k, v) => { try { localStorage.setItem('nudge.' + k, JSON.stringify(v)); } catch {} };
-  let state = L.cleanState(read('state'));
+  let state = L.tidy(L.cleanState(read('state')), Date.now());
   if (!read('state')) state.lists = [{ id: 'home', name: 'Home', colour: COLOURS[1] }, { id: 'work', name: 'Work', colour: COLOURS[0] }];
   let tab = ['today', 'upcoming', 'lists'].includes(read('tab')) ? read('tab') : 'today';
 
@@ -53,7 +54,8 @@
     $('toastUndo').hidden = !restore;
     $('toast').hidden = false;
     // Over a page, the footer can't be reached, so the message goes on the page.
-    (openDialog() || document.querySelector('footer')).append($('toast'));
+    const page = openDialog();
+    if (page) page.append($('toast')); else document.querySelector('footer').prepend($('toast'));
     toastTimer = setTimeout(() => { $('toast').hidden = true; undo = null; }, 5000);
   }
   $('toastUndo').addEventListener('click', () => {
@@ -80,8 +82,8 @@
     return sub;
   }
 
-  function row(t, showList = true) {
-    const r = el('div', t.done ? 'task done' : 'task');
+  function row(t, showList = true, sortable = false) {
+    const r = el('div', `${t.done ? 'task done' : 'task'}${sortable ? ' sortable' : ''}`);
     r.dataset.id = t.id;
     const tick = el('button', `tick pri${t.pri}`);
     tick.type = 'button';
@@ -95,22 +97,45 @@
     const sub = subline(t, showList);
     if (sub.childElementCount) main.append(sub);
     r.append(tick, main);
+    if (sortable) {
+      const grip = el('button', 'grip');
+      grip.type = 'button';
+      grip.setAttribute('aria-label', `Move ${t.title}. Use the up and down arrow keys.`);
+      grip.innerHTML = ICON.grip;
+      r.append(grip);
+    }
     return r;
   }
-  const taskList = (tasks, showList) => { const box = el('div', 'tasks'); box.append(...tasks.map(t => row(t, showList))); return box; };
+  const taskList = (tasks, showList, sortable) => { const box = el('div', 'tasks'); box.append(...tasks.map(t => row(t, showList, sortable))); return box; };
   function head(text, extra, cls = '') {
     const h = el('p', `head ${cls}`, text);
-    if (extra) h.append(el('span', '', extra));
+    if (extra) h.append(typeof extra === 'string' ? el('span', '', extra) : extra);
     return h;
   }
 
   // ---- the three tabs ----
+  let showDoneToday = false;
   function renderToday() {
     const { overdue, today } = L.today(state.tasks, now());
     const out = [];
-    if (overdue.length) out.push(head('Overdue', String(overdue.length), 'late'), taskList(overdue));
+    if (overdue.length) {
+      const move = el('button', '', 'Move to today');
+      move.type = 'button';
+      move.dataset.moveOverdue = '1';
+      const movable = overdue.some(t => L.canMove(t, now()));
+      out.push(head(`Overdue (${overdue.length})`, movable ? move : '', 'late'), taskList(overdue));
+    }
     if (today.length) out.push(head('Today', String(today.length)), taskList(today));
-    if (!out.length) out.push(el('p', 'empty', 'Nothing due today.'));
+    const done = L.doneToday(state.tasks, now());
+    if (!out.length) out.push(el('p', 'empty', state.tasks.length ? 'Nothing due today.' : 'Type a task below. Try: Call mum tomorrow 5pm #home'));
+    if (done.length) {
+      const b = el('button', 'done-toggle');
+      b.type = 'button';
+      b.dataset.doneToday = '1';
+      b.append(el('span', '', `Done today (${done.length})`), el('span', '', showDoneToday ? 'Hide' : 'Show'));
+      out.push(b);
+      if (showDoneToday) out.push(taskList(done));
+    }
     return out;
   }
   function renderUpcoming() {
@@ -179,6 +204,18 @@
     const list = e.target.closest('[data-list]');
     if (list) return openList(list.dataset.list === 'inbox' ? null : list.dataset.list);
     if (e.target.closest('[data-new-list]')) return askList(null);
+    if (e.target.closest('[data-done-today]')) { showDoneToday = !showDoneToday; return render(); }
+    if (e.target.closest('[data-move-overdue]')) {
+      // Undo puts back only these dates, not anything done since.
+      const day = L.iso(now());
+      const was = new Map(state.tasks.filter(t => L.canMove(t, now())).map(t => [t.id, t.due]));
+      state.tasks = L.moveOverdue(state.tasks, now());
+      commit();
+      return say('Moved to today', () => {
+        state.tasks = state.tasks.map(t => (was.has(t.id) && t.due === day ? { ...t, due: was.get(t.id) } : t));
+        commit();
+      });
+    }
     if (e.target.closest('[data-close]')) e.target.closest('dialog').close();
   });
 
@@ -230,17 +267,23 @@
     $('listTitle').textContent = list ? list.name : 'Inbox';
     $('listEdit').hidden = !list;
     const mine = state.tasks.filter(t => !t.deleted && (t.list || null) === openListId);
-    const open = mine.filter(t => !t.done).sort((a, b) => (a.due || '9999').localeCompare(b.due || '9999') || (a.time || '99').localeCompare(b.time || '99') || a.created - b.created);
+    const open = L.listOrder(mine.filter(t => !t.done));
     const done = mine.filter(t => t.done).sort((a, b) => b.done - a.done);
     const out = [];
-    out.push(open.length ? taskList(open, false) : el('p', 'empty', 'Nothing here yet.'));
+    out.push(open.length ? taskList(open, false, true) : el('p', 'empty', 'Nothing here yet.'));
     if (done.length) {
       const b = el('button', 'done-toggle');
       b.type = 'button';
       b.dataset.doneToggle = '1';
       b.append(el('span', '', `Completed (${done.length})`), el('span', '', showDone ? 'Hide' : 'Show'));
       out.push(b);
-      if (showDone) out.push(taskList(done, false));
+      if (showDone) {
+        out.push(taskList(done, false));
+        const clear = el('button', 'done-toggle', 'Clear completed');
+        clear.type = 'button';
+        clear.dataset.clearDone = '1';
+        out.push(clear);
+      }
     }
     const body = $('listBody');
     body.replaceChildren(...out);
@@ -253,9 +296,82 @@
     show('listPage');
   }
   $('listBody').addEventListener('click', e => {
+    if (e.target.closest('[data-clear-done]')) {
+      const stamp = +now();
+      state.tasks = state.tasks.map(t => (t.done && !t.deleted && (t.list || null) === openListId ? { ...t, deleted: stamp } : t));
+      commit();
+      return say('Cleared', () => { state.tasks = state.tasks.map(t => (t.deleted === stamp ? { ...t, deleted: null } : t)); commit(); });
+    }
     if (!e.target.closest('[data-done-toggle]')) return;
     showDone = !showDone;
     renderListPage();
+  });
+
+  // Rows move by the grip, or by the arrow keys on it.
+  let lifted = null;
+  const openRows = () => [...$('listBody').querySelectorAll('.task.sortable')];
+  function placeRow(ids) {
+    const order = new Map(ids.map((id, i) => [id, i]));
+    state.tasks = state.tasks.map(t => (order.has(t.id) ? { ...t, order: order.get(t.id) } : t));
+    // An Undo from before the drag would put a task back in an old place.
+    undo = null;
+    $('toast').hidden = true;
+    save();
+    renderListPage();
+  }
+  $('listBody').addEventListener('pointerdown', e => {
+    const grip = e.target.closest('.grip');
+    if (!grip) return;
+    const r = grip.closest('.task');
+    const rows = openRows();
+    grip.setPointerCapture(e.pointerId);
+    r.classList.add('lifted');
+    const middle = x => { const b = x.getBoundingClientRect(); return b.top + b.height / 2; };
+    lifted = { id: e.pointerId, r, rows, from: rows.indexOf(r), to: rows.indexOf(r), y: e.clientY, h: r.getBoundingClientRect().height + 6, centres: rows.map(middle) };
+  });
+  $('listBody').addEventListener('pointermove', e => {
+    if (!lifted || e.pointerId !== lifted.id) return;
+    const { r, rows, from, h, centres } = lifted;
+    const dy = e.clientY - lifted.y;
+    r.style.transform = `translateY(${dy}px)`;
+    // Its place is however many rows it has passed, whatever their heights.
+    lifted.to = centres.filter((c, i) => i !== from && c < centres[from] + dy).length;
+    rows.forEach((x, i) => {
+      if (x === r) return;
+      const shift = i > from && i <= lifted.to ? -h : i < from && i >= lifted.to ? h : 0;
+      x.style.transform = shift ? `translateY(${shift}px)` : '';
+    });
+  });
+  function dropRow(e) {
+    if (!lifted || e.pointerId !== lifted.id) return;
+    const { rows, from, to } = lifted;
+    lifted = null;
+    const ids = rows.map(x => x.dataset.id);
+    if (e.type === 'pointerup' && to !== from) { ids.splice(to, 0, ...ids.splice(from, 1)); haptic(); placeRow(ids); } else renderListPage();
+  }
+  $('listBody').addEventListener('pointerup', dropRow);
+  $('listBody').addEventListener('pointercancel', dropRow);
+  $('listBody').addEventListener('keydown', e => {
+    const grip = e.target.closest('.grip');
+    const step = { ArrowUp: -1, ArrowDown: 1 }[e.key];
+    if (!grip || !step) return;
+    e.preventDefault();
+    const ids = openRows().map(x => x.dataset.id);
+    const from = ids.indexOf(grip.closest('.task').dataset.id);
+    const to = Math.max(0, Math.min(ids.length - 1, from + step));
+    ids.splice(to, 0, ...ids.splice(from, 1));
+    placeRow(ids);
+    openRows()[to].querySelector('.grip').focus();
+  });
+
+  $('listShare').addEventListener('click', () => {
+    const list = listOf(openListId);
+    const name = list ? list.name : 'Inbox';
+    const lines = L.listOrder(state.tasks.filter(t => L.isOpen(t) && (t.list || null) === openListId)).map(t => `- ${t.title}`);
+    const text = [name, ...lines].join('\n');
+    if (app) return toApp({ type: 'share', title: name, text });
+    if (navigator.share) return navigator.share({ text }).catch(() => {});
+    navigator.clipboard?.writeText(text).then(() => say('Copied'), () => {});
   });
   $('listQuick').addEventListener('submit', e => {
     e.preventDefault();
@@ -307,7 +423,7 @@
     if (!sure) { sure = true; $('askDelete').textContent = 'Tap again. Its tasks move to Inbox'; return; }
     const id = asking;
     state.lists = state.lists.filter(l => l.id !== id);
-    state.tasks = state.tasks.map(t => (t.list === id ? { ...t, list: null } : t));
+    state.tasks = state.tasks.map(t => (t.list === id ? { ...t, list: null, order: undefined } : t));
     $('listAsk').close();
     $('listPage').close();
     commit();
@@ -330,7 +446,7 @@
       o.value = repeat;
       $('fRepeat').append(o);
     }
-    $('fRepeat').value = repeat;
+    $('fRepeat').value = repeat === '1 days' ? '1 days' : repeat;
     $('fUntil').value = t.repeat?.until || '';
     $('fNag').value = String(t.nag || 0);
     $('fPri').value = String(t.pri);
@@ -345,6 +461,18 @@
   function drawTaskExtras() {
     const t = task(editing);
     $('fUntilWrap').hidden = !t.repeat;
+    $('fUntil').value = t.repeat?.until || '';
+    const days = t.repeat?.unit === 'days' ? t.repeat.days || [] : null;
+    $('fDays').hidden = !days;
+    if (days) {
+      $('fDays').replaceChildren(...[1, 2, 3, 4, 5, 6, 0].map(d => {
+        const b = el('button', '', ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'][d]);
+        b.type = 'button';
+        b.dataset.day = d;
+        b.setAttribute('aria-pressed', String(days.includes(d)));
+        return b;
+      }));
+    }
     $('fReminders').replaceChildren(...t.reminders.map((r, i) => {
       const b = el('button', 'chip', L.reminderText(r, now()));
       b.type = 'button';
@@ -384,6 +512,7 @@
       $('fTime').value = '';
       $('fRepeat').value = '';
     } else if (t.repeat?.dom) change.repeat = { ...t.repeat, dom: L.parseDay(due).getDate() };
+    if (due && t.repeat?.unit === 'days') { change.due = L.fitToDays(due, t.repeat); $('fDue').value = change.due; }
     if (due && !t.due && !t.reminders.length && state.prefs.defaultReminder != null) change.reminders = [{ before: state.prefs.defaultReminder }];
     edit(change);
   });
@@ -401,7 +530,26 @@
     const [every, unit] = v.split(' ');
     const due = t.due || L.iso(now());
     $('fDue').value = due;
-    edit({ due, repeat: { every: Number(every), unit, dom: L.parseDay(due).getDate(), until: t.repeat?.until || undefined } });
+    const repeat = { every: Number(every), unit, dom: L.parseDay(due).getDate(), until: t.repeat?.until || undefined };
+    if (unit === 'days') repeat.days = [L.parseDay(due).getDay()];
+    edit({ due, repeat });
+  });
+  $('fDays').addEventListener('click', e => {
+    const b = e.target.closest('[data-day]');
+    if (!b) return;
+    const t = task(editing), day = Number(b.dataset.day), days = t.repeat.days || [];
+    const next = days.includes(day) ? days.filter(d => d !== day) : [...days, day];
+    if (!next.length) return;   // a repeat needs at least one day
+    const repeat = { ...t.repeat, days: next };
+    const due = L.fitToDays(t.due, repeat);
+    $('fDue').value = due;
+    edit({ repeat, due });
+  });
+  $('fQuickDates').addEventListener('click', e => {
+    const b = e.target.closest('[data-date]');
+    if (!b) return;
+    $('fDue').value = b.dataset.date === '' ? '' : L.addDays(L.iso(now()), Number(b.dataset.date));
+    $('fDue').dispatchEvent(new Event('change'));
   });
   $('fUntil').addEventListener('change', () => {
     const t = task(editing);
@@ -436,7 +584,8 @@
   });
   $('fNag').addEventListener('change', () => edit({ nag: Number($('fNag').value) }));
   $('fPri').addEventListener('change', () => edit({ pri: Number($('fPri').value) }));
-  $('fList').addEventListener('change', () => edit({ list: $('fList').value || null }));
+  // Its place in the old list means nothing in the new one.
+  $('fList').addEventListener('change', () => edit({ list: $('fList').value || null, order: undefined }));
   $('fSubForm').addEventListener('submit', e => {
     e.preventDefault();
     const title = $('fSubBox').value.trim();
@@ -496,6 +645,10 @@
     $('health').replaceChildren(line('Notifications', health.notifications, 'notifications'), line('Exact alarms', health.exact, 'alarms'), line('No battery limits', health.battery, 'battery'));
   }
   $('warn').addEventListener('click', () => openSettings());
+  $('testBtn').addEventListener('click', () => {
+    toApp({ type: 'testAlarm' });
+    say('It rings in about a minute. You can close the app.');
+  });
   function openSettings() {
     $('sDefault').value = state.prefs.defaultReminder == null ? '' : String(state.prefs.defaultReminder);
     $('sSummary').value = state.prefs.summary || '';
@@ -591,7 +744,7 @@
       let m;
       try { m = JSON.parse(e.data); } catch { return; }
       if (m.type === 'state') {
-        if (m.state) { try { state = L.cleanState(JSON.parse(m.state)); } catch {} }
+        if (m.state) { try { state = L.tidy(L.cleanState(JSON.parse(m.state)), Date.now()); } catch {} }
         takeActions(m.actions);
         save();
         render();

@@ -78,6 +78,11 @@ class AlarmPlanTest {
         assertEquals(listOf("t#nag"), AlarmPlan.carriedOver(listOf(due, nag), listOf(due), now) { it }.map { it.id })
     }
 
+    @Test fun aTestReminderSurvivesANewList() {
+        val test = alarm(AlarmPlan.TEST_ID, "", "", now.plusMinutes(1), summary = true)
+        assertEquals(listOf(AlarmPlan.TEST_ID), AlarmPlan.carriedOver(listOf(test), emptyList(), now) { it }.map { it.id })
+    }
+
     @Test fun dismissStopsNudgingAndNothingElse() {
         val list = listOf(alarm("a#nag", "t", "d", now.plusHours(1)), alarm("b", "t", "d", now.plusHours(2)))
         assertEquals(listOf("b"), AlarmPlan.afterDismiss(list, "t").map { it.id })

@@ -17,6 +17,7 @@ import com.matisseduffield.nudge.R
 import com.matisseduffield.nudge.widget.TodayWidget
 import org.json.JSONArray
 import org.json.JSONObject
+import java.time.LocalDate
 import java.time.LocalDateTime
 import java.time.ZoneId
 
@@ -32,6 +33,7 @@ object Alarms {
     const val CHANNEL = "reminders"
     private const val EXTRA_OCC = "nudge.occ"
     private const val NOTIFICATION = 2
+    private const val TEST_NOTIFICATION = 3
     private const val SUMMARY_CHANNEL = "summary"
     private const val SUMMARY_ID = 1
     private val lock = Any()
@@ -71,8 +73,10 @@ object Alarms {
 
     private fun dueOf(task: JSONObject) = if (task.isNull("due")) "" else task.optString("due")
 
-    // An alarm's date has been ticked off once the task has moved past it.
-    private fun current(task: JSONObject?, occ: String) = task != null && occ >= dueOf(task)
+    // A repeating task's date has been ticked off once the task has moved past it. A
+    // one-off task can only have been moved to another day, and is still to do.
+    private fun current(task: JSONObject?, occ: String) = task != null &&
+        (occ >= dueOf(task) || (task.isNull("repeat") && dueOf(task) <= LocalDate.now().toString()))
 
     // What survives a new list from the page. Nudging takes the task's latest title and
     // interval, and stops if that's been switched off.
@@ -125,6 +129,13 @@ object Alarms {
             show(context, alarm)
             Store.writeAlarms(context, AlarmPlan.afterRinging(all, alarm, LocalDateTime.now()))
         }
+        arm(context)
+    }
+
+    /** Rings through the same path as a real reminder, so it proves the whole chain. */
+    fun test(context: Context) = synchronized(lock) {
+        val alarm = Alarm(AlarmPlan.TEST_ID, "", "", LocalDateTime.now().plusMinutes(1), "Test reminder", "Your reminders are working.", 0, true)
+        Store.writeAlarms(context, Store.readAlarms(context).filter { it.id != alarm.id } + alarm)
         arm(context)
     }
 
@@ -188,7 +199,9 @@ object Alarms {
             .setData("nudge://open/${alarm.task}".toUri())
             .putExtra(EXTRA_TASK, alarm.task)
         val tap = PendingIntent.getActivity(context, requestCode(alarm.task), open, PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
-        val builder = NotificationCompat.Builder(context, if (alarm.summary) SUMMARY_CHANNEL else CHANNEL)
+        // The test goes through the Reminders channel, so it shows what a real one would do.
+        val test = alarm.id == AlarmPlan.TEST_ID
+        val builder = NotificationCompat.Builder(context, if (alarm.summary && !test) SUMMARY_CHANNEL else CHANNEL)
             .setSmallIcon(R.drawable.ic_notify)
             .setContentTitle(alarm.title)
             .setContentText(alarm.body)
@@ -198,7 +211,7 @@ object Alarms {
             .addExtras(Bundle().apply { putString(EXTRA_OCC, alarm.occ) })
         val manager = context.getSystemService(NotificationManager::class.java)
         if (alarm.summary) {
-            manager.notify(SUMMARY_ID, builder.build())
+            manager.notify(if (test) TEST_NOTIFICATION else SUMMARY_ID, builder.build())
             return
         }
         builder

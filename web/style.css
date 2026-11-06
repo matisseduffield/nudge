@@ -78,6 +78,7 @@ p, h1, h2 { margin: 0; }
 .view::-webkit-scrollbar { display: none; }
 .head { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; padding: 16px 0 6px; font-size: .78rem; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); }
 .head.late { color: var(--neg); }
+.head button { min-height: 32px; padding: 0; background: none; border: 0; font-size: .84rem; font-weight: 600; letter-spacing: 0; text-transform: none; color: var(--accent); }
 .head span { letter-spacing: 0; text-transform: none; font-weight: 400; }
 .tasks { display: grid; gap: 6px; }
 .task { position: relative; display: grid; grid-template-columns: 44px minmax(0, 1fr); align-items: center; min-height: 56px; background: var(--surface); border-radius: 10px; }
@@ -86,6 +87,9 @@ p, h1, h2 { margin: 0; }
 .tick.pri1 i { border-color: var(--accent); }
 .tick.pri2 i { border-color: var(--neg); }
 .task.done .tick i { background: var(--pos); border-color: var(--pos); color: var(--on-ink); }
+.task.sortable { grid-template-columns: 44px minmax(0, 1fr) 40px; transition: transform .16s ease; }
+.task.lifted { z-index: 2; transition: none; box-shadow: 0 6px 16px rgba(0, 0, 0, .18); }
+.grip { display: grid; place-items: center; width: 40px; height: 56px; padding: 0; background: none; border: 0; color: var(--line-strong); touch-action: none; cursor: grab; }
 .task-main { min-width: 0; padding: 8px 12px 8px 0; background: none; border: 0; text-align: left; }
 .task-main b { display: block; font-size: 1rem; font-weight: 600; line-height: 1.3; overflow-wrap: anywhere; }
 .task.done .task-main b { font-weight: 400; color: var(--muted); text-decoration: line-through; }
@@ -142,6 +146,10 @@ dialog.page::backdrop { background: var(--bg); }
 .chips:empty { display: none; }
 .chip { display: inline-flex; align-items: center; gap: 8px; min-height: 36px; padding: 0 6px 0 11px; background: var(--key); border: 0; border-radius: 8px; font-size: .86rem; font-weight: 600; }
 .chip svg { color: var(--muted); }
+.chip.plain { padding: 0 11px; }
+.week { display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px; }
+.week button { min-height: 40px; padding: 0; background: var(--surface); border: 0; border-radius: 7px; font-size: .8rem; font-weight: 600; color: var(--muted); }
+.week button[aria-pressed="true"] { background: var(--ink); color: var(--on-ink); }
 .step { display: grid; grid-template-columns: 36px minmax(0, 1fr) 36px; align-items: center; min-height: 44px; }
 .step .tick { width: 36px; height: 44px; }
 .step .tick i { width: 20px; height: 20px; }

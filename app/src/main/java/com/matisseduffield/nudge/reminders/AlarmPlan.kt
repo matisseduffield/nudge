@@ -17,6 +17,7 @@ data class Alarm(
 /** What happens to the list of alarms, kept free of Android so it can be tested on its own. */
 object AlarmPlan {
     const val MAX_ARMED = 50
+    const val TEST_ID = "test"
     private const val NAG_SUFFIX = "#nag"
     private const val SNOOZE_SUFFIX = "#snooze"
     private const val MISSED_DAYS = 3L
@@ -53,7 +54,7 @@ object AlarmPlan {
     /** Alarms the phone must keep when the page sends a new list: ones due but not rung yet, and nudging. */
     fun carriedOver(old: List<Alarm>, fresh: List<Alarm>, now: LocalDateTime, keep: (Alarm) -> Alarm?): List<Alarm> {
         val ids = fresh.map { it.id }.toSet()
-        return old.filter { it.id !in ids && (isNag(it) || !it.at.isAfter(now)) }.mapNotNull(keep)
+        return old.filter { it.id !in ids && (isNag(it) || it.id == TEST_ID || !it.at.isAfter(now)) }.mapNotNull(keep)
     }
 
     /** Snoozing replaces the nudging with one alarm later on. */

@@ -257,6 +257,41 @@ test('a day before keeps its clock time', () => {
   assert.deepEqual(L.firings(t, NOW).map(f => f.at).sort(), ['2027-09-26T09:00', '2027-10-02T09:00']);
 });
 
+test('a repeat can fall on certain days', () => {
+  const r = { every: 1, unit: 'days', days: [1, 3, 5] };
+  assert.equal(L.nextDate('2026-11-06', r), '2026-11-09');   // Friday to Monday
+  assert.equal(L.nextDate('2026-11-09', r), '2026-11-11');
+  assert.equal(L.repeatText({ ...r, days: [5, 0, 1] }), 'Mon, Fri, Sun');
+  assert.equal(L.fitToDays('2026-11-07', r), '2026-11-09');
+  assert.equal(L.fitToDays('2026-11-06', r), '2026-11-06');
+  const t = q('Gym every mon, wed and fri 7am');
+  assert.equal(t.title, 'Gym');
+  assert.deepEqual(t.repeat, { every: 1, unit: 'days', days: [1, 3, 5] });
+  assert.equal(t.due, '2026-11-06');
+  assert.equal(q('Bins every tue and thu').due, '2026-11-10');
+  assert.equal(q('Gym every mon and wed tomorrow').due, '2026-11-09');   // tomorrow's a Saturday
+  assert.equal(L.complete(task({ due: '2026-11-06', repeat: r }), NOW).due, '2026-11-09');
+  assert.deepEqual(L.cleanState({ tasks: [{ id: 'a', title: 'x', due: '2026-11-06', repeat: r }] }).tasks[0].repeat, r);
+});
+
+test('overdue tasks can all move to today', () => {
+  const tasks = [task({ title: 'a', due: '2026-11-01' }), task({ title: 'b', due: '2026-11-09' }), task({ title: 'c', due: '2026-11-01', done: 1 }), task({ title: 'bins', due: '2026-11-02', repeat: { every: 1, unit: 'week' } })];
+  const moved = L.moveOverdue(tasks, NOW);
+  // A weekly task keeps its own day.
+  assert.deepEqual(moved.map(t => t.due), ['2026-11-06', '2026-11-09', '2026-11-01', '2026-11-02']);
+  assert.ok(L.canMove(tasks[0], NOW));
+  assert.ok(!L.canMove(tasks[3], NOW));
+});
+
+test('done today, list order and old deletions', () => {
+  const tasks = [task({ title: 'today', done: +NOW }), task({ title: 'old', done: +NOW - 3 * 864e5 }), task({ title: 'gone', done: +NOW, deleted: +NOW })];
+  assert.deepEqual(L.doneToday(tasks, NOW).map(t => t.title), ['today']);
+  const list = [task({ title: 'new', due: '2026-11-07' }), task({ title: 'second', order: 2 }), task({ title: 'first', order: 1 })];
+  assert.deepEqual(L.listOrder(list).map(t => t.title), ['first', 'second', 'new']);
+  const state = { tasks: [task({ title: 'keep', deleted: +NOW - 864e5 }), task({ title: 'purge', deleted: +NOW - 31 * 864e5 }), task({ title: 'open' })] };
+  assert.deepEqual(L.tidy(state, +NOW).tasks.map(t => t.title), ['keep', 'open']);
+});
+
 test('dates and times read naturally', () => {
   assert.equal(L.dayText('2026-11-06', NOW), 'Today');
   assert.equal(L.dayText('2026-11-07', NOW), 'Tomorrow');

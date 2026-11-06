@@ -78,6 +78,7 @@
   <div class="page-head">
     <button class="icon-btn back" type="button" data-close aria-label="Back"><svg width="10" height="16" viewBox="0 0 10 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 2 2 8l6 6"/></svg></button>
     <h2 id="listTitle"></h2>
+    <button class="tool" id="listShare" type="button">Share</button>
     <button class="tool" id="listEdit" type="button">Edit</button>
   </div>
   <div class="page-body" id="listBody"></div>
@@ -100,6 +101,12 @@
     <input class="title-box" id="fTitle" type="text" placeholder="Title" aria-label="Title" autocapitalize="sentences">
     <textarea class="box notes" id="fNotes" rows="2" placeholder="Notes" aria-label="Notes"></textarea>
 
+    <div class="chips" id="fQuickDates" role="group" aria-label="Quick dates">
+      <button class="chip plain" type="button" data-date="0">Today</button>
+      <button class="chip plain" type="button" data-date="1">Tomorrow</button>
+      <button class="chip plain" type="button" data-date="7">Next week</button>
+      <button class="chip plain" type="button" data-date="">No date</button>
+    </div>
     <div class="field-row">
       <label class="field"><span>Date</span><input class="box" id="fDue" type="date"></label>
       <label class="field"><span>Time</span><input class="box" id="fTime" type="time"></label>
@@ -107,12 +114,14 @@
     <div class="field-row">
       <label class="field"><span>Repeat</span>
         <select class="box" id="fRepeat">
-          <option value="">Never</option><option value="1 day">Daily</option><option value="1 weekdays">Weekdays</option><option value="1 week">Weekly</option>
+          <option value="">Never</option><option value="1 day">Daily</option><option value="1 weekdays">Weekdays</option><option value="1 week">Weekly</option><option value="1 days">Certain days</option>
           <option value="2 week">Every 2 weeks</option><option value="1 month">Monthly</option><option value="3 month">Every 3 months</option><option value="1 year">Yearly</option>
         </select>
       </label>
       <label class="field" id="fUntilWrap"><span>Until</span><input class="box" id="fUntil" type="date"></label>
     </div>
+
+    <div class="week" id="fDays" role="group" aria-label="Days of the week" hidden></div>
 
     <div class="group">
       <p class="label">Reminders</p>
@@ -161,6 +170,7 @@
     <div class="group" id="healthBox" hidden>
       <p class="label">Reminder check</p>
       <div id="health"></div>
+      <button class="btn" id="testBtn" type="button">Send a test reminder</button>
     </div>
     <div class="group">
       <p class="label">Reminders</p>

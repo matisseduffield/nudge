@@ -322,6 +322,7 @@ class MainActivity : ComponentActivity() {
             }
             "askNotifications" -> if (Build.VERSION.SDK_INT >= 33) askNotifications.launch(Manifest.permission.POST_NOTIFICATIONS)
             "openSettings" -> openSettingsFor(msg.optString("what"))
+            "testAlarm" -> Alarms.test(this)
             "checkUpdate" -> checkForUpdateNow()
             "installUpdate" -> pendingUpdate?.let { installFromCard(it) }
         }

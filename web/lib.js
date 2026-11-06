@@ -18,6 +18,7 @@
   const MONTHS = ['january', 'february', 'march', 'april', 'may', 'june', 'july', 'august', 'september', 'october', 'november', 'december'];
   const NAMES = { sun: 0, mon: 1, tue: 2, tues: 2, wed: 3, thu: 4, thur: 4, thurs: 4, fri: 5, sat: 6 };
   WEEKDAYS.forEach((w, i) => { NAMES[w] = i; });
+  const DAY_LABELS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
   const WEEKDAY = Object.keys(NAMES).sort((a, b) => b.length - a.length).join('|');
   const LONG_DAY = WEEKDAYS.join('|');
   const SHORT_DAY = Object.keys(NAMES).filter(n => !WEEKDAYS.includes(n)).sort((a, b) => b.length - a.length).join('|');
@@ -33,7 +34,7 @@
   }
 
   // ---- repeats ----
-  // { every: n, unit: 'day'|'week'|'month'|'year'|'weekdays', dom: day of the month, until: day }
+  // { every: n, unit: 'day'|'week'|'month'|'year'|'weekdays'|'days', dom: day of the month, days: [weekday numbers], until: day }
   function addMonths(day, n, dom) {
     const d = parseDay(day);
     const want = dom || d.getDate();
@@ -42,6 +43,11 @@
     first.setDate(Math.min(want, last));
     return iso(first);
   }
+  function nextOn(day, days) {
+    let next = addDays(day, 1);
+    while (!days.includes(parseDay(next).getDay())) next = addDays(next, 1);
+    return next;
+  }
   function nextDate(day, repeat) {
     const n = repeat.every || 1;
     switch (repeat.unit) {
@@ -49,17 +55,15 @@
       case 'week': return addDays(day, 7 * n);
       case 'month': return addMonths(day, n, repeat.dom);
       case 'year': return addMonths(day, 12 * n, repeat.dom);
-      case 'weekdays': {
-        let next = addDays(day, 1);
-        while ([0, 6].includes(parseDay(next).getDay())) next = addDays(next, 1);
-        return next;
-      }
+      case 'weekdays': return nextOn(day, [1, 2, 3, 4, 5]);
+      case 'days': return nextOn(day, repeat.days?.length ? repeat.days : [parseDay(day).getDay()]);
       default: return addDays(day, 1);
     }
   }
   const repeatText = r => {
     if (!r) return '';
     if (r.unit === 'weekdays') return 'Weekdays';
+    if (r.unit === 'days') return [...(r.days || [])].sort((a, b) => ((a + 6) % 7) - ((b + 6) % 7)).map(d => DAY_LABELS[d]).join(', ');
     const n = r.every || 1;
     if (n === 1) return { day: 'Daily', week: 'Weekly', month: 'Monthly', year: 'Yearly' }[r.unit];
     return `Every ${n} ${r.unit}s`;
@@ -92,8 +96,13 @@
 
     // Repeats that say "every" are clear anywhere. "Weekly" alone only counts at the
     // end of the line, later on, so "Write weekly report" stays a title.
-    let onDay = null;
-    take(new RegExp(`\\severy\\s+(${WEEKDAY})\\b`, 'i'), m => { out.repeat = { every: 1, unit: 'week' }; onDay = NAMES[m[1].toLowerCase()]; })
+    let onDay = null, onDays = null;
+    const dayName = `(?:${WEEKDAY})\\b`;
+    take(new RegExp(`\\severy\\s+(${dayName}(?:\\s*(?:,|and|&)\\s*${dayName})+)`, 'i'), m => {
+      onDays = [...new Set(m[1].toLowerCase().split(/\s*(?:,|and|&)\s*/).map(n => NAMES[n.trim()]))];
+      out.repeat = { every: 1, unit: 'days', days: onDays };
+    })
+      || take(new RegExp(`\\severy\\s+(${WEEKDAY})\\b`, 'i'), m => { out.repeat = { every: 1, unit: 'week' }; onDay = NAMES[m[1].toLowerCase()]; })
       || take(/\severy\s+(\d+)\s+(day|week|month|year)s?\b/i, m => { out.repeat = { every: Number(m[1]), unit: m[2].toLowerCase() }; })
       || take(/\severy\s+other\s+(day|week|month|year)\b/i, m => { out.repeat = { every: 2, unit: m[1].toLowerCase() }; })
       || take(/\severy\s+weekday\b/i, () => { out.repeat = { every: 1, unit: 'weekdays' }; })
@@ -169,7 +178,9 @@
     }
 
     if (onDay !== null && !out.due) out.due = parseDay(today).getDay() === onDay ? today : nextWeekday(today, onDay);
+    if (onDays && !out.due) out.due = onDays.includes(parseDay(today).getDay()) ? today : nextDate(today, out.repeat);
     if (out.repeat && !out.due) out.due = today;
+    if (onDays) out.due = fitToDays(out.due, out.repeat);
     if (out.repeat?.unit === 'weekdays' && [0, 6].includes(parseDay(out.due).getDay())) out.due = nextDate(out.due, out.repeat);
     // A time alone means the next time that clock comes round.
     if (out.time && !out.due) out.due = atTime(today, out.time) > now ? today : addDays(today, 1);
@@ -248,6 +259,12 @@
 
   const onDay = (task, day) => occurrences(task, 1, day)[0] === day;
 
+  // A repeat on set days has to start on one of them.
+  function fitToDays(day, repeat) {
+    if (repeat?.unit !== 'days' || !repeat.days?.length || repeat.days.includes(parseDay(day).getDay())) return day;
+    return nextDate(day, repeat);
+  }
+
   // The whole list the phone is given, soonest first. Two reminders can't share a
   // minute for one task, and a morning summary rides along for the next fortnight.
   function schedule(state, now) {
@@ -306,6 +323,23 @@
   }
 
   // ---- what the screens show ----
+  // Overdue one-off tasks can all move to today. A repeating task's date is what
+  // keeps it on its day, and ticking it catches it up anyway.
+  const canMove = (t, now) => isOpen(t) && !t.repeat && t.due && t.due < iso(now);
+  function moveOverdue(tasks, now) {
+    const day = iso(now);
+    return tasks.map(t => (canMove(t, now) ? { ...t, due: day } : t));
+  }
+
+  // Ticked off today. A repeating task moves on instead, so it isn't here.
+  const doneToday = (tasks, now) => tasks.filter(t => !t.deleted && t.done && iso(new Date(t.done)) === iso(now)).sort((a, b) => b.done - a.done);
+
+  // A list in the order it was dragged into, with anything newer after that by date.
+  const listOrder = tasks => [...tasks].sort((a, b) => (a.order ?? Infinity) - (b.order ?? Infinity) || byDue(a, b));
+
+  // Deleted tasks stay a month in case they're wanted back.
+  const tidy = (state, now) => ({ ...state, tasks: state.tasks.filter(t => !t.deleted || now - t.deleted < 30 * DAY) });
+
   const byDue = (a, b) => (a.due || '9999').localeCompare(b.due || '9999') || (a.time || '99').localeCompare(b.time || '99') || b.pri - a.pri || a.created - b.created;
 
   function today(tasks, now) {
@@ -365,7 +399,7 @@
     const day = v => (typeof v === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(v) ? v : null);
     const hm = v => (typeof v === 'string' && /^\d{2}:\d{2}$/.test(v) ? v : null);
     const stamp = v => (Number.isFinite(v) ? v : null);
-    const units = ['day', 'week', 'month', 'year', 'weekdays'];
+    const units = ['day', 'week', 'month', 'year', 'weekdays', 'days'];
     const lists = Array.isArray(s.lists) ? s.lists.filter(l => l && l.id && typeof l.name === 'string') : [];
     const tasks = (Array.isArray(s.tasks) ? s.tasks : []).filter(t => t && t.id && typeof t.title === 'string').map(t => ({
       ...t,
@@ -380,13 +414,14 @@
       deleted: stamp(t.deleted),
       snooze: stamp(t.snooze),
       created: stamp(t.created) || 0,
+      order: Number.isFinite(t.order) ? t.order : undefined,
       reminders: (Array.isArray(t.reminders) ? t.reminders : []).filter(r => r && (Number.isFinite(r.before) || typeof r.at === 'string')),
       subs: (Array.isArray(t.subs) ? t.subs : []).filter(x => x && typeof x.title === 'string'),
     }));
     return { lists, tasks, prefs: { summary: null, defaultReminder: 0, use24: false, ...(s.prefs || {}) } };
   }
 
-  const lib = { iso, parseDay, addDays, daysBetween, atTime, local, nextDate, repeatText, parseQuick, makeTask, newId, isOpen, complete, occurrences, firings, schedule, applyActions, today, upcoming, search, dayText, timeText, reminderText, cleanState };
+  const lib = { iso, parseDay, addDays, daysBetween, atTime, local, nextDate, repeatText, parseQuick, makeTask, newId, isOpen, complete, occurrences, firings, schedule, applyActions, today, upcoming, search, dayText, timeText, reminderText, cleanState, fitToDays, canMove, moveOverdue, doneToday, listOrder, tidy };
   if (typeof module === 'object' && module.exports) module.exports = lib;
   else root.NudgeLib = lib;
 })(this);
