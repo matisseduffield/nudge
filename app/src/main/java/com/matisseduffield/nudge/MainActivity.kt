@@ -265,7 +265,9 @@ class MainActivity : ComponentActivity() {
                 .put("type", "health")
                 .put("notifications", notifications && notificationsOn())
                 .put("exact", Alarms.canBeExact(this))
-                .put("battery", power.isIgnoringBatteryOptimizations(packageName)),
+                .put("battery", power.isIgnoringBatteryOptimizations(packageName))
+                .put("fullScreen", fullScreenOn() && Alarms.urgentChannelOn(this))
+                .put("overlay", Settings.canDrawOverlays(this)),
         )
     }
 
@@ -275,6 +277,9 @@ class MainActivity : ComponentActivity() {
         return manager.areNotificationsEnabled() && channel?.importance != android.app.NotificationManager.IMPORTANCE_NONE
     }
 
+    private fun fullScreenOn() =
+        Build.VERSION.SDK_INT < 34 || getSystemService(android.app.NotificationManager::class.java).canUseFullScreenIntent()
+
     private fun openSettingsFor(what: String) {
         val intent = when (what) {
             "alarms" -> if (Build.VERSION.SDK_INT >= 31) {
@@ -283,9 +288,20 @@ class MainActivity : ComponentActivity() {
                 Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, "package:$packageName".toUri())
             }
             "battery" -> Intent(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS)
+            "overlay" -> Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION, "package:$packageName".toUri())
+            "fullscreen" -> if (!Alarms.urgentChannelOn(this)) {
+                Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS).putExtra(Settings.EXTRA_APP_PACKAGE, packageName)
+            } else if (Build.VERSION.SDK_INT >= 34) {
+                Intent(Settings.ACTION_MANAGE_APP_USE_FULL_SCREEN_INTENT, "package:$packageName".toUri())
+            } else {
+                Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, "package:$packageName".toUri())
+            }
             else -> Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS).putExtra(Settings.EXTRA_APP_PACKAGE, packageName)
         }
-        runCatching { startActivity(intent) }
+        // Not every phone has every settings page.
+        runCatching { startActivity(intent) }.onFailure {
+            runCatching { startActivity(Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, "package:$packageName".toUri())) }
+        }
     }
 
     private fun onPageMessage(message: WebMessageCompat, reply: JavaScriptReplyProxy) {
@@ -322,7 +338,7 @@ class MainActivity : ComponentActivity() {
             }
             "askNotifications" -> if (Build.VERSION.SDK_INT >= 33) askNotifications.launch(Manifest.permission.POST_NOTIFICATIONS)
             "openSettings" -> openSettingsFor(msg.optString("what"))
-            "testAlarm" -> Alarms.test(this)
+            "testAlarm" -> Alarms.test(this, msg.optBoolean("loud"))
             "checkUpdate" -> checkForUpdateNow()
             "installUpdate" -> pendingUpdate?.let { installFromCard(it) }
         }

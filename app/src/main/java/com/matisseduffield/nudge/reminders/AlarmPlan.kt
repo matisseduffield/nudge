@@ -12,6 +12,7 @@ data class Alarm(
     val body: String,
     val nag: Int,
     val summary: Boolean = false,
+    val loud: Boolean = false,
 )
 
 /** What happens to the list of alarms, kept free of Android so it can be tested on its own. */

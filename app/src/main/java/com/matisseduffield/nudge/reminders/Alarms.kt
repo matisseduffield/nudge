@@ -8,8 +8,11 @@ import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
+import android.media.AudioAttributes
+import android.media.RingtoneManager
 import android.os.Build
 import android.os.Bundle
+import android.provider.Settings
 import androidx.core.app.NotificationCompat
 import androidx.core.net.toUri
 import com.matisseduffield.nudge.MainActivity
@@ -34,6 +37,8 @@ object Alarms {
     private const val EXTRA_OCC = "nudge.occ"
     private const val NOTIFICATION = 2
     private const val TEST_NOTIFICATION = 3
+    private const val URGENT_CHANNEL = "urgent"
+    private const val LOUD_NAG = 5
     private const val SUMMARY_CHANNEL = "summary"
     private const val SUMMARY_ID = 1
     private val lock = Any()
@@ -85,9 +90,10 @@ object Alarms {
         val task = tasks[alarm.task]
         if (!current(task, alarm.occ)) return null
         if (!AlarmPlan.isNag(alarm)) return alarm
-        val nag = task!!.optInt("nag")
+        val loud = task!!.optBoolean("loud")
+        val nag = task.optInt("nag").takeIf { it > 0 } ?: if (loud) LOUD_NAG else 0
         val reminders = task.optJSONArray("reminders")?.length() ?: 0
-        return if (nag > 0 && reminders > 0) alarm.copy(title = task.optString("title"), nag = nag) else null
+        return if (nag > 0 && reminders > 0) alarm.copy(title = task.optString("title"), nag = nag, loud = loud) else null
     }
 
     // A notification for something finished in the app shouldn't stay up.
@@ -96,7 +102,8 @@ object Alarms {
         for (shown in manager.activeNotifications) {
             val task = shown.tag ?: continue
             val occ = shown.notification.extras.getString(EXTRA_OCC).orEmpty()
-            if (!current(tasks[task], occ)) manager.cancel(task, NOTIFICATION)
+            val quietened = shown.notification.channelId == URGENT_CHANNEL && tasks[task]?.optBoolean("loud") != true
+            if (!current(tasks[task], occ) || quietened) cancel(context, task)
         }
     }
 
@@ -133,8 +140,9 @@ object Alarms {
     }
 
     /** Rings through the same path as a real reminder, so it proves the whole chain. */
-    fun test(context: Context) = synchronized(lock) {
-        val alarm = Alarm(AlarmPlan.TEST_ID, "", "", LocalDateTime.now().plusMinutes(1), "Test reminder", "Your reminders are working.", 0, true)
+    fun test(context: Context, loud: Boolean) = synchronized(lock) {
+        val body = if (loud) "This is how an urgent task rings." else "Your reminders are working."
+        val alarm = Alarm(AlarmPlan.TEST_ID, "", "", LocalDateTime.now().plusMinutes(1), "Test reminder", body, 0, true, loud)
         Store.writeAlarms(context, Store.readAlarms(context).filter { it.id != alarm.id } + alarm)
         arm(context)
     }
@@ -149,17 +157,31 @@ object Alarms {
         Store.addAction(context, JSONObject().put("type", "done").put("task", task).put("occ", occ).put("when", System.currentTimeMillis()))
     }
 
-    fun snooze(context: Context, task: String, occ: String, title: String, body: String, minutes: Long) {
+    fun snooze(context: Context, task: String, occ: String, title: String, body: String, minutes: Long, loud: Boolean = false) {
         val until = LocalDateTime.now().plusMinutes(minutes)
         // Finished in the app since it rang: there's nothing to snooze.
-        if (!current(openTasks(context)[task], occ)) return cancel(context, task)
+        val saved = openTasks(context)[task]
+        if (!current(saved, occ)) return cancel(context, task)
+        // The snooze comes back as insistent as the reminder was.
+        val nag = saved!!.optInt("nag").takeIf { it > 0 } ?: if (saved.optBoolean("loud")) LOUD_NAG else 0
         synchronized(lock) {
-            val rung = Alarm(task, task, occ, until, title, body, 0)
+            val rung = Alarm(task, task, occ, until, title, body, nag, loud = loud)
             Store.writeAlarms(context, AlarmPlan.afterSnooze(Store.readAlarms(context), rung, until))
             cancel(context, task)
             arm(context)
         }
         Store.addAction(context, JSONObject().put("type", "snooze").put("task", task).put("occ", occ).put("until", millis(until)))
+    }
+
+    /** Dealt with on the full-screen page: stops the ringing and any nudging, and the task stays open. */
+    fun stop(context: Context, task: String) {
+        val manager = context.getSystemService(NotificationManager::class.java)
+        if (task.isEmpty()) {
+            manager.cancel(TEST_NOTIFICATION)
+            return AlarmActivity.close(task)
+        }
+        dismiss(context, task)
+        cancel(context, task)
     }
 
     fun dismiss(context: Context, task: String) = synchronized(lock) {
@@ -171,12 +193,73 @@ object Alarms {
 
     private fun cancel(context: Context, task: String) {
         context.getSystemService(NotificationManager::class.java).cancel(task, NOTIFICATION)
+        AlarmActivity.close(task)
     }
+
+    /** Whether an urgent task's notification is still up, for the page's queue. */
+    fun ringing(context: Context, task: String) =
+        context.getSystemService(NotificationManager::class.java).activeNotifications.any {
+            if (task.isEmpty()) it.id == TEST_NOTIFICATION else it.tag == task
+        }
+
+    /** Whether the urgent channel exists and hasn't been switched off. */
+    fun urgentChannelOn(context: Context): Boolean =
+        context.getSystemService(NotificationManager::class.java).getNotificationChannel(URGENT_CHANNEL)?.importance != NotificationManager.IMPORTANCE_NONE
 
     private fun channels(context: Context) {
         val manager = context.getSystemService(NotificationManager::class.java)
         manager.createNotificationChannel(NotificationChannel(CHANNEL, "Reminders", NotificationManager.IMPORTANCE_HIGH))
         manager.createNotificationChannel(NotificationChannel(SUMMARY_CHANNEL, "Morning summary", NotificationManager.IMPORTANCE_DEFAULT))
+        // On the alarm stream, so it sounds with the phone on silent.
+        manager.createNotificationChannel(
+            NotificationChannel(URGENT_CHANNEL, "Urgent, rings like a call", NotificationManager.IMPORTANCE_HIGH).apply {
+                setSound(
+                    RingtoneManager.getDefaultUri(RingtoneManager.TYPE_ALARM),
+                    AudioAttributes.Builder().setUsage(AudioAttributes.USAGE_ALARM).setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION).build(),
+                )
+                enableVibration(true)
+                vibrationPattern = longArrayOf(0, 700, 500, 700, 500, 700)
+                lockscreenVisibility = android.app.Notification.VISIBILITY_PUBLIC
+            },
+        )
+    }
+
+    // The full page, ringing over everything. Android shows it by itself on a locked
+    // phone. On one in use it only shows a banner, unless we may draw over other apps.
+    private fun showLoud(context: Context, alarm: Alarm) {
+        val test = alarm.id == AlarmPlan.TEST_ID
+        val page = Intent(context, AlarmActivity::class.java)
+            .setFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_NO_USER_ACTION)
+            .setData("nudge://ring/${alarm.task}".toUri())
+            .putExtra(EXTRA_TASK, alarm.task)
+            .putExtra("occ", alarm.occ)
+            .putExtra("title", alarm.title)
+            .putExtra("body", alarm.body)
+            .putExtra("until", System.currentTimeMillis() + AlarmActivity.RING_MS)
+        val full = PendingIntent.getActivity(context, requestCode(alarm.task) + 5, page, PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
+        val builder = NotificationCompat.Builder(context, URGENT_CHANNEL)
+            .setSmallIcon(R.drawable.ic_notify)
+            .setContentTitle(alarm.title)
+            .setContentText(alarm.body)
+            .setCategory(NotificationCompat.CATEGORY_ALARM)
+            .setPriority(NotificationCompat.PRIORITY_MAX)
+            .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
+            .setOngoing(true)
+            .setTimeoutAfter(AlarmActivity.RING_MS)
+            .setContentIntent(full)
+            .setFullScreenIntent(full, true)
+            .addExtras(Bundle().apply { putString(EXTRA_OCC, alarm.occ) })
+        if (!test) {
+            builder
+                .addAction(0, "Done", action(context, ACTION_DONE, alarm, 2))
+                .addAction(0, "10 min", action(context, ACTION_SNOOZE, alarm, 3, 10))
+                .addAction(0, "1 hour", action(context, ACTION_SNOOZE, alarm, 4, 60))
+        }
+        // Insistent repeats the sound until it's dealt with or the timeout above.
+        val notification = builder.build().apply { flags = flags or android.app.Notification.FLAG_INSISTENT }
+        val manager = context.getSystemService(NotificationManager::class.java)
+        if (test) manager.notify(TEST_NOTIFICATION, notification) else manager.notify(alarm.task, NOTIFICATION, notification)
+        if (Settings.canDrawOverlays(context)) runCatching { context.startActivity(page) }
     }
 
     private fun action(context: Context, name: String, alarm: Alarm, code: Int, minutes: Long = 0): PendingIntent {
@@ -188,12 +271,14 @@ object Alarms {
             .putExtra("title", alarm.title)
             .putExtra("body", alarm.body)
             .putExtra(EXTRA_MINUTES, minutes)
+            .putExtra("loud", alarm.loud)
         return PendingIntent.getBroadcast(context, requestCode(alarm.task) + code, intent, PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
     }
 
     private fun show(context: Context, alarm: Alarm) {
         if (Build.VERSION.SDK_INT >= 33 && context.checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) return
         channels(context)
+        if (alarm.loud) return showLoud(context, alarm)
         val open = Intent(context, MainActivity::class.java)
             .setFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_SINGLE_TOP)
             .setData("nudge://open/${alarm.task}".toUri())

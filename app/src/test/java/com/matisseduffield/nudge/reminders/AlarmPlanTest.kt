@@ -44,6 +44,11 @@ class AlarmPlanTest {
         assertEquals(now.plusMinutes(30), second.single().at)
     }
 
+    @Test fun aLoudTaskStaysLoudWhenItNudges() {
+        val a = alarm("a", "t", "d", now, nag = 5).copy(loud = true)
+        assertTrue(AlarmPlan.afterRinging(listOf(a), a, now).single().loud)
+    }
+
     @Test fun aSummaryNeverNudges() {
         val a = alarm("s", "", "", now, nag = 15, summary = true)
         assertTrue(AlarmPlan.afterRinging(listOf(a), a, now).isEmpty())

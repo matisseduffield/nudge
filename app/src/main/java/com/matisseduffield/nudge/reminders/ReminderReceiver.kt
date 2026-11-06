@@ -18,6 +18,7 @@ class ReminderReceiver : BroadcastReceiver() {
                 intent.getStringExtra("title").orEmpty(),
                 intent.getStringExtra("body").orEmpty(),
                 intent.getLongExtra(Alarms.EXTRA_MINUTES, 10),
+                intent.getBooleanExtra("loud", false),
             )
             Alarms.ACTION_DISMISS -> Alarms.dismiss(context, task)
         }

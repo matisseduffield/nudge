@@ -75,7 +75,7 @@
   function parseQuick(text, now, lists = []) {
     const today = iso(now);
     let t = ` ${text.trim()} `;
-    const out = { title: '', due: null, time: null, pri: 0, repeat: null, list: null, listName: null, remind: null };
+    const out = { title: '', due: null, time: null, pri: 0, repeat: null, list: null, listName: null, remind: null, loud: false };
     const take = (re, fn) => {
       const m = t.match(re);
       if (!m) return false;
@@ -89,7 +89,8 @@
       const hit = lists.find(l => l.name.toLowerCase().replace(/\s+/g, '') === m[1].toLowerCase());
       out.list = hit ? hit.id : null;
     });
-    take(/\s(!{1,2})(?=\s)/, m => { out.pri = m[1].length; });
+    // Three is the top of the scale: it rings like a call.
+    take(/\s(!{1,3})(?=\s)/, m => { out.pri = Math.min(2, m[1].length); out.loud = m[1].length === 3; });
     take(/\sremind(?: me)?\s+(\d+)\s*(m|mins?|minutes?|h|hrs?|hours?|d|days?)\s+before(?=\s)/i, m => {
       out.remind = Number(m[1]) * ({ m: 1, h: 60, d: 1440 }[m[2][0].toLowerCase()]);
     });
@@ -197,11 +198,18 @@
 
   function makeTask(fields, now, prefs = {}) {
     const reminders = fields.remind != null ? [{ before: fields.remind }]
-      : fields.due && prefs.defaultReminder != null ? [{ before: prefs.defaultReminder }] : [];
-    return {
-      id: newId(now), title: fields.title, notes: '', list: fields.list || null, due: fields.due || (fields.remind != null ? iso(now) : null), time: fields.time || null,
-      pri: fields.pri || 0, repeat: fields.repeat || null, reminders, nag: 0, subs: [], done: null, deleted: null, snooze: null, created: +now,
-    };
+      : fields.loud ? [{ before: 0 }]
+        : fields.due && prefs.defaultReminder != null ? [{ before: prefs.defaultReminder }] : [];
+    return ensureRing({
+      id: newId(now), title: fields.title, notes: '', list: fields.list || null, due: fields.due || (fields.remind != null || fields.loud ? iso(now) : null), time: fields.time || null,
+      pri: fields.pri || 0, repeat: fields.repeat || null, reminders, nag: 0, loud: !!fields.loud, subs: [], done: null, deleted: null, snooze: null, created: +now,
+    }, now);
+  }
+
+  // An urgent task has to have something left to ring, even if its time has gone by.
+  function ensureRing(task, now) {
+    if (!task.loud || firings(task, now).length) return task;
+    return { ...task, reminders: [...task.reminders, { at: local(new Date(+now + 36e5)) }] };
   }
 
   const isOpen = t => !t.done && !t.deleted;
@@ -210,8 +218,10 @@
   function complete(task, now) {
     const today = iso(now);
     if (task.repeat && task.due) {
+      // Overdue and ticked means caught up, so today's date goes with it.
+      const overdue = task.due < today;
       let next = nextDate(task.due, task.repeat);
-      while (next < today) next = nextDate(next, task.repeat);
+      while (next < today || (overdue && next === today)) next = nextDate(next, task.repeat);
       if (!task.repeat.until || next <= task.repeat.until) {
         return { ...task, due: next, snooze: null, subs: task.subs.map(s => ({ ...s, done: false })), reminders: task.reminders.filter(r => r.before != null) };
       }
@@ -233,6 +243,10 @@
     return out;
   }
 
+  // A task that rings like a call keeps coming back until it's dealt with.
+  const LOUD_NAG = 5;
+  const nagOf = task => task.nag || (task.loud ? LOUD_NAG : 0);
+
   // When a reminder rings. Days and weeks before keep the clock time, even across a
   // change of daylight saving.
   function ringTime(occ, time, before) {
@@ -247,7 +261,7 @@
     const out = [];
     const body = (when, day) => (day ? [dayText(day, when), timeText(task.time, use24)].filter(Boolean).join(', ') : '');
     const add = (when, occ) => {
-      if (when > now) out.push({ id: `${task.id}|${local(when)}`, task: task.id, occ, at: local(when), title: task.title, body: body(when, occ), nag: task.nag || 0 });
+      if (when > now) out.push({ id: `${task.id}|${local(when)}`, task: task.id, occ, at: local(when), title: task.title, body: body(when, occ), nag: nagOf(task), loud: !!task.loud });
     };
     for (const occ of occurrences(task, limit, iso(now))) {
       for (const r of task.reminders) if (r.before != null) add(ringTime(occ, task.time, r.before), occ);
@@ -410,6 +424,7 @@
       pri: [1, 2].includes(t.pri) ? t.pri : 0,
       repeat: day(t.due) && t.repeat && units.includes(t.repeat.unit) ? t.repeat : null,
       nag: Number.isFinite(t.nag) ? t.nag : 0,
+      loud: t.loud === true,
       done: stamp(t.done),
       deleted: stamp(t.deleted),
       snooze: stamp(t.snooze),
@@ -421,7 +436,7 @@
     return { lists, tasks, prefs: { summary: null, defaultReminder: 0, use24: false, ...(s.prefs || {}) } };
   }
 
-  const lib = { iso, parseDay, addDays, daysBetween, atTime, local, nextDate, repeatText, parseQuick, makeTask, newId, isOpen, complete, occurrences, firings, schedule, applyActions, today, upcoming, search, dayText, timeText, reminderText, cleanState, fitToDays, canMove, moveOverdue, doneToday, listOrder, tidy };
+  const lib = { iso, parseDay, addDays, daysBetween, atTime, local, nextDate, repeatText, parseQuick, makeTask, newId, isOpen, complete, occurrences, firings, schedule, applyActions, today, upcoming, search, dayText, timeText, reminderText, cleanState, ensureRing, fitToDays, canMove, moveOverdue, doneToday, listOrder, tidy };
   if (typeof module === 'object' && module.exports) module.exports = lib;
   else root.NudgeLib = lib;
 })(this);

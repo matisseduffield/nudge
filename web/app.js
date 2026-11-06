@@ -75,7 +75,14 @@
       if (when) sub.append(el('span', !t.done && t.due < day ? 'late' : '', when));
     }
     if (t.repeat) { const s = el('span'); s.innerHTML = ICON.repeat; s.append(L.repeatText(t.repeat)); sub.append(s); }
-    if (t.reminders.length) { const s = el('span'); s.innerHTML = ICON.bell; if (t.nag) s.append('Keeps nudging'); else if (t.reminders.length > 1) s.append(String(t.reminders.length)); sub.append(s); }
+    if (t.reminders.length) {
+      const s = el('span', t.loud ? 'loud' : '');
+      s.innerHTML = ICON.bell;
+      if (t.loud) s.append('Rings like a call');
+      else if (t.nag) s.append('Keeps nudging');
+      else if (t.reminders.length > 1) s.append(String(t.reminders.length));
+      sub.append(s);
+    }
     if (t.subs.length) sub.append(el('span', '', `${t.subs.filter(x => x.done).length}/${t.subs.length}`));
     const list = showList && listOf(t.list);
     if (list) { const s = el('span'); const d = el('i', 'dot'); d.style.background = list.colour; s.append(d, list.name); sub.append(s); }
@@ -228,6 +235,7 @@
     if (q.listName) bits.push(listOf(q.list)?.name || `New list: ${q.listName}`);
     if (q.pri) bits.push(q.pri === 2 ? 'Urgent' : 'High');
     if (q.remind != null) bits.push(L.reminderText({ before: q.remind }, now()));
+    if (q.loud) bits.push('Rings like a call');
     return bits.join(' · ');
   }
   function addFrom(text, list) {
@@ -449,6 +457,7 @@
     $('fRepeat').value = repeat === '1 days' ? '1 days' : repeat;
     $('fUntil').value = t.repeat?.until || '';
     $('fNag').value = String(t.nag || 0);
+    $('fLoud').checked = !!t.loud;
     $('fPri').value = String(t.pri);
     $('fList').replaceChildren(el('option', '', 'Inbox'), ...state.lists.map(l => { const o = el('option', '', l.name); o.value = l.id; return o; }));
     $('fList').firstChild.value = '';
@@ -461,6 +470,8 @@
   function drawTaskExtras() {
     const t = task(editing);
     $('fUntilWrap').hidden = !t.repeat;
+    $('fUntil').value = t.repeat?.until || '';
+    $('fLoud').checked = !!t.loud && t.reminders.length > 0;
     $('fUntil').value = t.repeat?.until || '';
     const days = t.repeat?.unit === 'days' ? t.repeat.days || [] : null;
     $('fDays').hidden = !days;
@@ -583,6 +594,17 @@
     edit({ reminders: t.reminders.filter((_, i) => i !== Number(b.dataset.dropReminder)) });
   });
   $('fNag').addEventListener('change', () => edit({ nag: Number($('fNag').value) }));
+  $('fLoud').addEventListener('change', () => {
+    const t = task(editing);
+    const change = { loud: $('fLoud').checked };
+    // It needs a moment to ring at.
+    if (change.loud && !t.reminders.length) {
+      change.reminders = [{ before: 0 }];
+      if (!t.due) { change.due = L.iso(now()); $('fDue').value = change.due; }
+    }
+    if (change.loud) change.reminders = L.ensureRing({ ...t, ...change }, now()).reminders;
+    edit(change);
+  });
   $('fPri').addEventListener('change', () => edit({ pri: Number($('fPri').value) }));
   // Its place in the old list means nothing in the new one.
   $('fList').addEventListener('change', () => edit({ list: $('fList').value || null, order: undefined }));
@@ -642,13 +664,21 @@
       }
       return r;
     };
-    $('health').replaceChildren(line('Notifications', health.notifications, 'notifications'), line('Exact alarms', health.exact, 'alarms'), line('No battery limits', health.battery, 'battery'));
+    $('health').replaceChildren(
+      line('Notifications', health.notifications, 'notifications'),
+      line('Exact alarms', health.exact, 'alarms'),
+      line('No battery limits', health.battery, 'battery'),
+      line('Full-screen alarms', health.fullScreen, 'fullscreen'),
+      line('Show over other apps', health.overlay, 'overlay'),
+    );
   }
   $('warn').addEventListener('click', () => openSettings());
-  $('testBtn').addEventListener('click', () => {
-    toApp({ type: 'testAlarm' });
-    say('It rings in about a minute. You can close the app.');
-  });
+  for (const [id, loud] of [['testBtn', false], ['testLoudBtn', true]]) {
+    $(id).addEventListener('click', () => {
+      toApp({ type: 'testAlarm', loud });
+      say('It rings in about a minute. You can close the app.');
+    });
+  }
   function openSettings() {
     $('sDefault').value = state.prefs.defaultReminder == null ? '' : String(state.prefs.defaultReminder);
     $('sSummary').value = state.prefs.summary || '';

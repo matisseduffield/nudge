@@ -5,4 +5,8 @@
     <color name="widget_bg">#F7F8F4</color>
     <color name="widget_ink">#14211C</color>
     <color name="widget_muted">#5B6861</color>
+    <color name="alarm_bg">#0E1412</color>
+    <color name="alarm_ink">#E4EAE5</color>
+    <color name="alarm_muted">#8C9992</color>
+    <color name="alarm_key">#222D29</color>
 </resources>

@@ -133,6 +133,10 @@
         </select>
       </div>
       <input class="box" id="fCustom" type="datetime-local" aria-label="Reminder date and time" hidden>
+      <label class="switch-row tall">
+        <span><b>Ring like a call</b><small>Takes over the screen until you deal with it. For the urgent ones.</small></span>
+        <input id="fLoud" type="checkbox">
+      </label>
       <label class="field"><span>Keep nudging until done</span>
         <select class="box" id="fNag"><option value="0">Off</option><option value="5">Every 5 minutes</option><option value="15">Every 15 minutes</option><option value="30">Every 30 minutes</option><option value="60">Every hour</option></select>
       </label>
@@ -171,6 +175,7 @@
       <p class="label">Reminder check</p>
       <div id="health"></div>
       <button class="btn" id="testBtn" type="button">Send a test reminder</button>
+      <button class="btn" id="testLoudBtn" type="button">Test ringing like a call</button>
     </div>
     <div class="group">
       <p class="label">Reminders</p>

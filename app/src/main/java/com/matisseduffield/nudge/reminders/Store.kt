@@ -48,12 +48,13 @@ object Store {
             body = json.optString("body"),
             nag = json.optInt("nag"),
             summary = json.optBoolean("summary"),
+            loud = json.optBoolean("loud"),
         )
     }.getOrNull()
 
     private fun toJson(alarm: Alarm) = JSONObject()
         .put("id", alarm.id).put("task", alarm.task).put("occ", alarm.occ).put("at", alarm.at.toString())
-        .put("title", alarm.title).put("body", alarm.body).put("nag", alarm.nag).put("summary", alarm.summary)
+        .put("title", alarm.title).put("body", alarm.body).put("nag", alarm.nag).put("summary", alarm.summary).put("loud", alarm.loud)
 
     fun readAlarms(context: Context): List<Alarm> = synchronized(lock) {
         val text = read(context, ALARMS) ?: return emptyList()

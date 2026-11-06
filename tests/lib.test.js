@@ -96,8 +96,10 @@ test('ticking off finishes a task, or moves a repeating one on', () => {
   assert.equal(weekly.due, '2026-11-13');
   assert.equal(weekly.subs[0].done, false);
   assert.equal(weekly.snooze, null);
-  // Long overdue: it lands on the next date from today, not one in the past.
-  assert.equal(L.complete(task({ due: '2026-10-01', repeat: { every: 1, unit: 'day' } }), NOW).due, '2026-11-06');
+  // Long overdue: it lands on the next date after today, not one in the past.
+  assert.equal(L.complete(task({ due: '2026-10-01', repeat: { every: 1, unit: 'day' } }), NOW).due, '2026-11-07');
+  // And a weekly task keeps its own day.
+  assert.equal(L.complete(task({ due: '2026-11-02', repeat: { every: 1, unit: 'week' } }), NOW).due, '2026-11-09');
   // Past its end date, it really is done.
   assert.ok(L.complete(task({ due: '2026-11-06', repeat: { every: 1, unit: 'day', until: '2026-11-06' } }), NOW).done);
 });
@@ -290,6 +292,41 @@ test('done today, list order and old deletions', () => {
   assert.deepEqual(L.listOrder(list).map(t => t.title), ['first', 'second', 'new']);
   const state = { tasks: [task({ title: 'keep', deleted: +NOW - 864e5 }), task({ title: 'purge', deleted: +NOW - 31 * 864e5 }), task({ title: 'open' })] };
   assert.deepEqual(L.tidy(state, +NOW).tasks.map(t => t.title), ['keep', 'open']);
+});
+
+test('an urgent task rings like a call and keeps coming back', () => {
+  const t = task({ due: '2026-11-07', time: '09:00', reminders: [{ before: 0 }], loud: true });
+  const f = L.firings(t, NOW)[0];
+  assert.equal(f.loud, true);
+  assert.equal(f.nag, 5);
+  assert.equal(L.firings({ ...t, nag: 15 }, NOW)[0].nag, 15);
+  assert.equal(L.firings({ ...t, loud: false }, NOW)[0].loud, false);
+  assert.equal(L.firings({ ...t, loud: false }, NOW)[0].nag, 0);
+  assert.equal(L.cleanState({ tasks: [{ id: 'a', title: 'x', loud: 'yes' }] }).tasks[0].loud, false);
+});
+
+test('three exclamation marks make a task ring like a call', () => {
+  const p = q('Take the pills 8pm !!!');
+  assert.equal(p.title, 'Take the pills');
+  assert.deepEqual([p.loud, p.pri], [true, 2]);
+  assert.equal(q('Take the pills 8pm !!').loud, false);
+  const early = new Date(2026, 10, 6, 7, 0);
+  const made = L.makeTask({ title: 'Now', loud: true }, early, { defaultReminder: null });
+  assert.equal(made.loud, true);
+  assert.equal(made.due, '2026-11-06');
+  assert.deepEqual(made.reminders, [{ before: 0 }]);
+});
+
+test('an urgent task always has something left to ring', () => {
+  // Added at 3pm with no time: nine o'clock has gone, so it rings in an hour.
+  const late = new Date(2026, 10, 6, 15, 0);
+  const made = L.makeTask({ title: 'Pills', loud: true }, late, {});
+  assert.equal(L.firings(made, late).length, 1);
+  assert.equal(L.firings(made, late)[0].at, '2026-11-06T16:00');
+  // One with a reminder still to come is left alone.
+  const fine = task({ due: '2026-11-07', reminders: [{ before: 0 }], loud: true });
+  assert.equal(L.ensureRing(fine, NOW), fine);
+  assert.deepEqual(L.ensureRing(task({ loud: false }), NOW).reminders, []);
 });
 
 test('dates and times read naturally', () => {

@@ -1,4 +1,9 @@
 <resources>
     <string name="app_name">Nudge</string>
     <string name="widget_add">Add a task</string>
+    <string name="alarm_label">Nudge</string>
+    <string name="alarm_done">Done</string>
+    <string name="alarm_ten">10 min</string>
+    <string name="alarm_hour">1 hour</string>
+    <string name="alarm_stop">Stop ringing</string>
 </resources>
