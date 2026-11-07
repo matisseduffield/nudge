@@ -695,18 +695,6 @@
     const need = L.loudBlocker(health, askExact);
     if (need) toApp({ type: 'openSettings', what: need.what });
   });
-  for (const [id, loud] of [['testBtn', false], ['testLoudBtn', true]]) {
-    $(id).addEventListener('click', () => {
-      // A test that can't take over the screen would only look broken.
-      const need = loud ? L.loudBlocker(health, askExact) : L.exactBlocker(health, askExact);
-      if (need) {
-        say(need.short);
-        return toApp({ type: 'openSettings', what: need.what });
-      }
-      toApp({ type: 'testAlarm', loud });
-      say('It rings in about a minute. You can close the app.');
-    });
-  }
   function openSettings() {
     $('sDefault').value = state.prefs.defaultReminder == null ? '' : String(state.prefs.defaultReminder);
     $('sSummary').value = state.prefs.summary || '';

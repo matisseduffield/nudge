@@ -168,7 +168,8 @@ dialog.page::backdrop { background: var(--bg); }
 .check b { font-weight: 600; color: var(--pos); }
 .check b.off { color: var(--neg); }
 .check .tool { color: var(--accent); }
-.privacy { justify-self: start; padding: 13px 8px 13px 0; font-size: .8rem; color: var(--muted); }
+.legal { display: flex; justify-content: center; gap: 48px; }
+.legal a { padding: 12px 8px; font-size: .84rem; color: var(--muted); text-decoration: none; }
 
 dialog.ask { width: min(340px, calc(100vw - 32px)); padding: 16px; border: 0; border-radius: 12px; background: var(--surface); color: var(--ink); }
 dialog.ask::backdrop { background: rgba(10, 16, 14, .45); }
