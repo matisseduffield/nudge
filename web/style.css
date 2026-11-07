@@ -142,7 +142,7 @@ dialog.page::backdrop { background: var(--bg); }
 .form { display: grid; align-content: start; gap: 12px; padding-top: 14px; }
 .title-box { width: 100%; min-height: 48px; padding: 0 12px; background: var(--surface); border: 0; border-radius: 9px; font-size: 1.14rem; font-weight: 600; }
 .notes { padding: 11px 12px; resize: none; line-height: 1.4; }
-.field-row { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); gap: 8px; }   /* equal halves, or one full row when Until is hidden */
+.field-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 8.5em), 1fr)); gap: 8px; }   /* equal halves, one full row when Until is hidden, and stacked when big text won't fit two */
 .field { display: grid; grid-template-columns: minmax(0, 1fr); gap: 4px; min-width: 0; }
 .field span, .label { font-size: .8rem; font-weight: 600; color: var(--muted); }
 .group { display: grid; gap: 8px; padding-top: 6px; }
