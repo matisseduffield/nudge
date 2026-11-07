@@ -67,10 +67,12 @@ android {
         create("github") {
             dimension = "dist"
             buildConfigField("boolean", "SELF_UPDATER", "true")
+            buildConfigField("boolean", "ASK_EXACT_ALARM", "false")
         }
         create("play") {
             dimension = "dist"
             buildConfigField("boolean", "SELF_UPDATER", "false")
+            buildConfigField("boolean", "ASK_EXACT_ALARM", "true")
         }
     }
     compileOptions {

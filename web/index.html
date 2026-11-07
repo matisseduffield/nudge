@@ -195,6 +195,17 @@
       <p class="label">Deleted</p>
       <div id="trash"></div>
     </div>
+    <a class="privacy" href="https://teloone.au/apps/nudge/privacy/" rel="noreferrer">Privacy</a>
+  </div>
+</dialog>
+
+<!-- Why exact alarms, before Android's settings page -->
+<dialog class="ask" id="exactAsk" aria-labelledby="exactTitle">
+  <h2 id="exactTitle">Ring on time?</h2>
+  <p class="ask-text">Android can hold a reminder back to save battery, often for up to an hour. To ring at the time you set, Nudge needs Alarms &amp; reminders turned on in the next screen. Without it, reminders still ring, just later.</p>
+  <div class="actions">
+    <button class="btn" id="exactLater" type="button">Not now</button>
+    <button class="btn primary" id="exactGo" type="button">Open settings</button>
   </div>
 </dialog>
 

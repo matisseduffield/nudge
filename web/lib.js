@@ -214,6 +214,29 @@
 
   const isOpen = t => !t.done && !t.deleted;
 
+  // What the phone's settings mean for reminders. askExact is on in builds where the
+  // person has to allow exact alarms: there, without it, reminders are late, not off.
+  function reminderWarning(health, askExact) {
+    if (!health || (health.notifications && health.exact)) return null;
+    if (askExact && health.notifications) return 'Reminders may ring late. Tap to fix.';
+    return 'Reminders are switched off. Tap to fix.';
+  }
+  // Asked once, after notifications, and only when a task has a reminder to ring.
+  const shouldAskExact = (health, askExact, hasReminders, asked) =>
+    !!(askExact && hasReminders && !asked && health && health.notifications && !health.exact);
+  // What's stopping a reminder ringing on time, if anything.
+  const exactBlocker = (health, askExact) => (health && askExact && !health.exact
+    ? { what: 'alarms', text: 'Allow alarms and reminders, or this may ring late. Tap to turn it on.', short: 'Allow alarms and reminders, then test again.' } : null);
+  // What's stopping an urgent task taking over the screen, if anything.
+  function loudBlocker(health, askExact) {
+    if (!health) return null;
+    const late = exactBlocker(health, askExact);
+    if (late) return late;
+    if (!health.overlay) return { what: 'overlay', text: 'Allow Show over other apps, or this stays a banner while you’re using your phone. Tap to turn it on.', short: 'Allow Show over other apps, then test again.' };
+    if (!health.fullScreen) return { what: 'fullscreen', text: 'Allow full-screen alarms, or this won’t show on the lock screen. Tap to turn it on.', short: 'Allow full-screen alarms, then test again.' };
+    return null;
+  }
+
   // Ticking off: a repeating task moves to its next date, and anything else is done.
   function complete(task, now) {
     const today = iso(now);
@@ -436,7 +459,7 @@
     return { lists, tasks, prefs: { summary: null, defaultReminder: 0, use24: false, ...(s.prefs || {}) } };
   }
 
-  const lib = { iso, parseDay, addDays, daysBetween, atTime, local, nextDate, repeatText, parseQuick, makeTask, newId, isOpen, complete, occurrences, firings, schedule, applyActions, today, upcoming, search, dayText, timeText, reminderText, cleanState, ensureRing, fitToDays, canMove, moveOverdue, doneToday, listOrder, tidy };
+  const lib = { reminderWarning, shouldAskExact, exactBlocker, loudBlocker, iso, parseDay, addDays, daysBetween, atTime, local, nextDate, repeatText, parseQuick, makeTask, newId, isOpen, complete, occurrences, firings, schedule, applyActions, today, upcoming, search, dayText, timeText, reminderText, cleanState, ensureRing, fitToDays, canMove, moveOverdue, doneToday, listOrder, tidy };
   if (typeof module === 'object' && module.exports) module.exports = lib;
   else root.NudgeLib = lib;
 })(this);

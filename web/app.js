@@ -36,6 +36,7 @@
       write('askedNotify', true);
       toApp({ type: 'askNotifications' });
     }
+    askForExact();
   }
   function commit() { save(); render(); }
 
@@ -646,12 +647,12 @@
   $('findBox').addEventListener('input', renderFind);
 
   // ---- settings ----
-  let health = null;
+  let health = null, askExact = false;
   function renderHealth() {
     $('healthBox').hidden = !health;
-    const off = health && (!health.notifications || !health.exact);
-    $('warn').hidden = !off || !state.tasks.some(t => L.isOpen(t) && t.reminders.length);
-    $('warn').textContent = 'Reminders are switched off. Tap to fix.';
+    const warning = L.reminderWarning(health, askExact);
+    $('warn').hidden = !warning || !state.tasks.some(t => L.isOpen(t) && t.reminders.length);
+    $('warn').textContent = warning || '';
     if (!health) return;
     const line = (name, ok, what) => {
       const r = el('div', 'check');
@@ -675,28 +676,31 @@
   }
   $('warn').addEventListener('click', () => openSettings());
 
-  // What's stopping an urgent task taking over the screen, if anything.
-  function loudBlocker() {
-    if (!health) return null;
-    if (!health.overlay) return { what: 'overlay', text: 'Allow Show over other apps, or this stays a banner while you’re using your phone. Tap to turn it on.' };
-    if (!health.fullScreen) return { what: 'fullscreen', text: 'Allow full-screen alarms, or this won’t show on the lock screen. Tap to turn it on.' };
-    return null;
+  // Says why before Android's settings page opens, and takes no for an answer.
+  function askForExact() {
+    const hasReminders = state.tasks.some(t => L.isOpen(t) && t.reminders.length);
+    if (!L.shouldAskExact(health, askExact, hasReminders, read('askedExact'))) return;
+    write('askedExact', true);
+    show('exactAsk');
   }
+  $('exactLater').addEventListener('click', () => $('exactAsk').close());
+  $('exactGo').addEventListener('click', () => { $('exactAsk').close(); toApp({ type: 'openSettings', what: 'alarms' }); });
+
   function renderLoudFix() {
-    const need = editing && task(editing)?.loud ? loudBlocker() : null;
+    const need = editing && task(editing)?.loud ? L.loudBlocker(health, askExact) : null;
     $('fLoudFix').hidden = !need;
     if (need) $('fLoudFix').textContent = need.text;
   }
   $('fLoudFix').addEventListener('click', () => {
-    const need = loudBlocker();
+    const need = L.loudBlocker(health, askExact);
     if (need) toApp({ type: 'openSettings', what: need.what });
   });
   for (const [id, loud] of [['testBtn', false], ['testLoudBtn', true]]) {
     $(id).addEventListener('click', () => {
       // A test that can't take over the screen would only look broken.
-      const need = loud ? loudBlocker() : null;
+      const need = loud ? L.loudBlocker(health, askExact) : L.exactBlocker(health, askExact);
       if (need) {
-        say(need.what === 'overlay' ? 'Allow Show over other apps, then test again.' : 'Allow full-screen alarms, then test again.');
+        say(need.short);
         return toApp({ type: 'openSettings', what: need.what });
       }
       toApp({ type: 'testAlarm', loud });
@@ -809,6 +813,7 @@
         health = m;
         renderHealth();
         renderLoudFix();
+        askForExact();
       } else if (m.type === 'open') {
         if (m.task) openTask(m.task);
       } else if (m.type === 'focusAdd') {
@@ -817,6 +822,7 @@
       } else if (m.type === 'info') {
         appVersion = m.version;
         selfUpdates = m.updates === true;
+        askExact = m.askExact === true;
         $('version').disabled = !selfUpdates;
         const seen = read('seenVersion');
         write('seenVersion', appVersion);

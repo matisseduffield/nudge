@@ -4,9 +4,8 @@
     <!-- Only the github flavor's update checks use this; tasks stay on the phone. -->
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
-    <!-- Reminders ring on the minute, and come back after a restart. -->
-    <uses-permission android:name="android.permission.USE_EXACT_ALARM" />
-    <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" android:maxSdkVersion="32" />
+    <!-- Reminders come back after a restart. Each flavor declares its own exact
+         alarm permission, in its own manifest. -->
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
     <uses-permission android:name="android.permission.VIBRATE" />
     <!-- Urgent tasks ring like a call, over the lock screen and other apps. -->

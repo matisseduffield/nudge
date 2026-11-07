@@ -4,6 +4,10 @@
     <!-- Self-updates install APKs downloaded from the public nudge-releases repo.
          Both of these are deliberately absent from the play flavor. -->
     <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
+    <!-- Reminders ring on the minute. Granted by itself, so nothing to ask for here.
+         Play only allows this one for alarm and calendar apps, so play doesn't use it. -->
+    <uses-permission android:name="android.permission.USE_EXACT_ALARM" />
+    <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" android:maxSdkVersion="32" />
 
     <application>
         <receiver

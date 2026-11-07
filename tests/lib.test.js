@@ -356,3 +356,50 @@ test('a damaged save still opens', () => {
   assert.deepEqual([broken.due, broken.notes, broken.subs, broken.reminders, broken.repeat], [null, '', [], [{ before: 5 }], null]);
   assert.doesNotThrow(() => L.schedule({ tasks: [broken], prefs: {} }, NOW));
 });
+
+const ON = { notifications: true, exact: true, overlay: true, fullScreen: true };
+
+test('a GitHub build warns just as it always has', () => {
+  assert.equal(L.reminderWarning(null, false), null);
+  assert.equal(L.reminderWarning(ON, false), null);
+  assert.equal(L.reminderWarning({ ...ON, exact: false }, false), 'Reminders are switched off. Tap to fix.');
+  assert.equal(L.reminderWarning({ ...ON, notifications: false }, false), 'Reminders are switched off. Tap to fix.');
+});
+
+test('a Play build says late when reminders are late, and off when they are off', () => {
+  assert.equal(L.reminderWarning(ON, true), null);
+  assert.equal(L.reminderWarning({ ...ON, exact: false }, true), 'Reminders may ring late. Tap to fix.');
+  assert.equal(L.reminderWarning({ ...ON, notifications: false }, true), 'Reminders are switched off. Tap to fix.');
+  assert.equal(L.reminderWarning({ ...ON, notifications: false, exact: false }, true), 'Reminders are switched off. Tap to fix.');
+});
+
+test('exact alarms are asked for once, and only when they matter', () => {
+  const late = { ...ON, exact: false };
+  assert.equal(L.shouldAskExact(late, true, true, null), true);
+  assert.equal(L.shouldAskExact(late, true, true, true), false, 'already asked');
+  assert.equal(L.shouldAskExact(late, true, false, null), false, 'nothing to ring');
+  assert.equal(L.shouldAskExact(late, false, true, null), false, 'GitHub build');
+  assert.equal(L.shouldAskExact(ON, true, true, null), false, 'already allowed');
+  assert.equal(L.shouldAskExact({ ...late, notifications: false }, true, true, null), false, 'notifications come first');
+  assert.equal(L.shouldAskExact(null, true, true, null), false, 'the phone has not reported yet');
+});
+
+test('an urgent task says what is stopping it, in order', () => {
+  assert.equal(L.loudBlocker(null, true), null);
+  assert.equal(L.loudBlocker(ON, true), null);
+  assert.equal(L.loudBlocker({ ...ON, exact: false, overlay: false }, true).what, 'alarms');
+  assert.equal(L.loudBlocker({ ...ON, overlay: false, fullScreen: false }, true).what, 'overlay');
+  assert.equal(L.loudBlocker({ ...ON, fullScreen: false }, true).what, 'fullscreen');
+});
+
+test('a test reminder only promises a minute if it can keep to it', () => {
+  assert.equal(L.exactBlocker({ ...ON, exact: false }, true).what, 'alarms');
+  assert.equal(L.exactBlocker(ON, true), null);
+  assert.equal(L.exactBlocker({ ...ON, exact: false }, false), null, 'GitHub build');
+  assert.equal(L.exactBlocker(null, true), null);
+});
+
+test('a GitHub build never asks an urgent task about exact alarms', () => {
+  assert.equal(L.loudBlocker({ ...ON, exact: false }, false), null);
+  assert.equal(L.loudBlocker({ ...ON, exact: false, overlay: false }, false).what, 'overlay');
+});

@@ -280,7 +280,7 @@ class MainActivity : ComponentActivity() {
         when (msg.optString("type")) {
             "hello" -> {
                 page = reply
-                send(JSONObject().put("type", "info").put("version", BuildConfig.VERSION_NAME).put("updates", BuildConfig.SELF_UPDATER))
+                send(JSONObject().put("type", "info").put("version", BuildConfig.VERSION_NAME).put("updates", BuildConfig.SELF_UPDATER).put("askExact", BuildConfig.ASK_EXACT_ALARM))
                 send(JSONObject().put("type", "state").put("state", Store.readState(this)).put("actions", Store.takeActions(this)))
                 sendHealth()
                 sendPendingOpen()

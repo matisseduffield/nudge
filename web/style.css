@@ -168,11 +168,13 @@ dialog.page::backdrop { background: var(--bg); }
 .check b { font-weight: 600; color: var(--pos); }
 .check b.off { color: var(--neg); }
 .check .tool { color: var(--accent); }
+.privacy { justify-self: start; padding: 13px 8px 13px 0; font-size: .8rem; color: var(--muted); }
 
 dialog.ask { width: min(340px, calc(100vw - 32px)); padding: 16px; border: 0; border-radius: 12px; background: var(--surface); color: var(--ink); }
 dialog.ask::backdrop { background: rgba(10, 16, 14, .45); }
 dialog.ask h2 { margin-bottom: 10px; font-size: 1.1rem; font-weight: 600; }
 dialog.ask .box { background: var(--bg); }
+.ask-text { font-size: .94rem; line-height: 1.45; color: var(--muted); }
 .swatches { display: flex; justify-content: space-between; margin-top: 12px; }
 .swatch { width: 40px; height: 40px; padding: 0; border: 0; border-radius: 50%; }
 .swatch[aria-pressed="true"] { outline: 3px solid var(--ink); outline-offset: 2px; }

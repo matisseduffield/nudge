@@ -13,6 +13,12 @@ Bourse: one palette, Hanken Grotesk, no build step, a web page in an Android she
 
 Reminders only ring in the Android app. In a browser it's just a list.
 
+Exact alarms differ by flavor. `github` uses USE_EXACT_ALARM, which needs no asking.
+`play` uses SCHEDULE_EXACT_ALARM, because Play keeps USE_EXACT_ALARM for alarm and
+calendar apps: Android 14 and later start with it off, the page explains and opens the
+setting (`BuildConfig.ASK_EXACT_ALARM`), and without it reminders ring late rather than
+not at all.
+
 ## Releasing
 
 Commit, push, then push an annotated `v*` tag on its own. Its `- ` lines become
