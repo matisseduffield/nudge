@@ -1,13 +1,16 @@
-<!-- A tick, on the blue of the rest of the family. -->
+<!-- A bell with a tick cut out of it. -->
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
     android:width="108dp"
     android:height="108dp"
     android:viewportWidth="108"
     android:viewportHeight="108">
-    <path
-        android:pathData="M36,56 L49,69 L73,40"
-        android:strokeColor="#FFFFFF"
-        android:strokeWidth="9"
-        android:strokeLineCap="round"
-        android:strokeLineJoin="round" />
+    <group android:translateY="-3">
+        <path
+            android:pathData="M54,28C42,28 35,37 35,49V62L29.5,71C28.5,72.7 29.7,75 31.7,75H76.3C78.3,75 79.5,72.7 78.5,71L73,62V49C73,37 66,28 54,28ZM42.17,55.33L49.17,62.33A3.3,3.3 0 0 0 54.03,62.11L66.53,47.11A3.3,3.3 0 0 0 61.47,42.89L51.28,55.12L46.83,50.67A3.3,3.3 0 0 0 42.17,55.33Z"
+            android:fillColor="#FFFFFF"
+            android:fillType="evenOdd" />
+        <path
+            android:pathData="M46,79.5a8,8 0 0 0 16,0Z"
+            android:fillColor="#FFFFFF" />
+    </group>
 </vector>
