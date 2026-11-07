@@ -181,8 +181,7 @@
     if (onDay !== null && !out.due) out.due = parseDay(today).getDay() === onDay ? today : nextWeekday(today, onDay);
     if (onDays && !out.due) out.due = onDays.includes(parseDay(today).getDay()) ? today : nextDate(today, out.repeat);
     if (out.repeat && !out.due) out.due = today;
-    if (onDays) out.due = fitToDays(out.due, out.repeat);
-    if (out.repeat?.unit === 'weekdays' && [0, 6].includes(parseDay(out.due).getDay())) out.due = nextDate(out.due, out.repeat);
+    if (out.repeat) out.due = fitToDays(out.due, out.repeat);
     // A time alone means the next time that clock comes round.
     if (out.time && !out.due) out.due = atTime(today, out.time) > now ? today : addDays(today, 1);
     if (out.repeat && ['month', 'year'].includes(out.repeat.unit) && out.due) out.repeat.dom = parseDay(out.due).getDate();
@@ -296,9 +295,10 @@
 
   const onDay = (task, day) => occurrences(task, 1, day)[0] === day;
 
-  // A repeat on set days has to start on one of them.
+  // A repeat on set days, or on weekdays, has to start on one of them.
   function fitToDays(day, repeat) {
-    if (repeat?.unit !== 'days' || !repeat.days?.length || repeat.days.includes(parseDay(day).getDay())) return day;
+    const days = repeat?.unit === 'weekdays' ? [1, 2, 3, 4, 5] : repeat?.unit === 'days' ? repeat.days : null;
+    if (!days?.length || days.includes(parseDay(day).getDay())) return day;
     return nextDate(day, repeat);
   }
 
@@ -318,7 +318,8 @@
         const day = addDays(iso(now), i);
         const when = atTime(day, time);
         if (when <= now) continue;
-        const open = state.tasks.filter(t => isOpen(t) && t.due && (onDay(t, day) || (i === 0 && t.due < day)));
+        // Anything still open from before that day is overdue by then, as Today will show it.
+        const open = state.tasks.filter(t => isOpen(t) && t.due && (onDay(t, day) || t.due < day));
         lastSummary = local(when);
         if (!open.length) continue;
         const names = open.slice(0, 3).map(t => t.title).join(', ');
@@ -422,8 +423,8 @@
     return `${h % 12 || 12}${m ? `:${pad(m)}` : ''}${h < 12 ? 'am' : 'pm'}`;
   }
 
-  function reminderText(r, now) {
-    if (r.at) { const d = new Date(r.at); return `${dayText(iso(d), now)}, ${timeText(`${pad(d.getHours())}:${pad(d.getMinutes())}`)}`; }
+  function reminderText(r, now, use24) {
+    if (r.at) { const d = new Date(r.at); return `${dayText(iso(d), now)}, ${timeText(`${pad(d.getHours())}:${pad(d.getMinutes())}`, use24)}`; }
     if (r.before === 0) return 'At the time';
     if (r.before % 1440 === 0) return `${r.before / 1440} ${r.before === 1440 ? 'day' : 'days'} before`;
     if (r.before % 60 === 0) return `${r.before / 60} ${r.before === 60 ? 'hour' : 'hours'} before`;

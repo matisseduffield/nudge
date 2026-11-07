@@ -399,6 +399,8 @@
     $('askName').value = list?.name || '';
     $('askDelete').hidden = !list;
     $('askDelete').textContent = 'Delete list';
+    // Naming a new list wants the keyboard. Editing one may only be for its colour.
+    $('listAsk').querySelector('[data-cancel]').autofocus = !!list;
     drawSwatches();
     show('listAsk');
   }
@@ -448,11 +450,14 @@
     $('fNotes').value = t.notes;
     $('fDue').value = t.due || '';
     $('fTime').value = t.time || '';
-    // Quick add can make repeats the menu doesn't list, like every 3 days.
+    // Quick add can make repeats the menu doesn't list, like every 3 days. One
+    // added for another task goes, so it isn't offered here.
     const repeat = t.repeat ? `${t.repeat.every || 1} ${t.repeat.unit}` : '';
+    for (const o of $('fRepeat').querySelectorAll('[data-extra]')) if (o.value !== repeat) o.remove();
     if (repeat && ![...$('fRepeat').options].some(o => o.value === repeat)) {
       const o = el('option', '', L.repeatText(t.repeat));
       o.value = repeat;
+      o.dataset.extra = '1';
       $('fRepeat').append(o);
     }
     $('fRepeat').value = repeat === '1 days' ? '1 days' : repeat;
@@ -472,6 +477,7 @@
     const t = task(editing);
     $('fUntilWrap').hidden = !t.repeat;
     $('fUntil').value = t.repeat?.until || '';
+    $('fUntil').min = t.due || '';
     $('fLoud').checked = !!t.loud && t.reminders.length > 0;
     renderLoudFix();
     $('fUntil').value = t.repeat?.until || '';
@@ -487,10 +493,11 @@
       }));
     }
     $('fReminders').replaceChildren(...t.reminders.map((r, i) => {
-      const b = el('button', 'chip', L.reminderText(r, now()));
+      const text = L.reminderText(r, now(), state.prefs.use24);
+      const b = el('button', 'chip', text);
       b.type = 'button';
       b.dataset.dropReminder = i;
-      b.setAttribute('aria-label', `Remove reminder: ${L.reminderText(r, now())}`);
+      b.setAttribute('aria-label', `Remove reminder: ${text}`);
       b.insertAdjacentHTML('beforeend', ICON.cross);
       return b;
     }));
@@ -510,7 +517,13 @@
       return r;
     }));
   }
-  const edit = change => { setTask(editing, change); drawTaskExtras(); };
+  const edit = change => {
+    // Ringing like a call goes with the last reminder, or adding one later would bring it back unseen.
+    const t = { ...task(editing), ...change };
+    if (t.loud && !t.reminders.length) change = { ...change, loud: false };
+    setTask(editing, change);
+    drawTaskExtras();
+  };
   // Changes save as they're made, so there's no Save to miss.
   $('fTitle').addEventListener('input', () => { const v = $('fTitle').value.trim(); if (v) setTask(editing, { title: v }); });
   $('fNotes').addEventListener('input', () => setTask(editing, { notes: $('fNotes').value }));
@@ -525,7 +538,7 @@
       $('fTime').value = '';
       $('fRepeat').value = '';
     } else if (t.repeat?.dom) change.repeat = { ...t.repeat, dom: L.parseDay(due).getDate() };
-    if (due && t.repeat?.unit === 'days') { change.due = L.fitToDays(due, t.repeat); $('fDue').value = change.due; }
+    if (due && t.repeat) { change.due = L.fitToDays(due, t.repeat); $('fDue').value = change.due; }
     if (due && !t.due && !t.reminders.length && state.prefs.defaultReminder != null) change.reminders = [{ before: state.prefs.defaultReminder }];
     edit(change);
   });
@@ -541,9 +554,10 @@
     const t = task(editing);
     if (!v) return edit({ repeat: null });
     const [every, unit] = v.split(' ');
-    const due = t.due || L.iso(now());
+    const repeat = { every: Number(every), unit, until: t.repeat?.until || undefined };
+    const due = L.fitToDays(t.due || L.iso(now()), repeat);
     $('fDue').value = due;
-    const repeat = { every: Number(every), unit, dom: L.parseDay(due).getDate(), until: t.repeat?.until || undefined };
+    repeat.dom = L.parseDay(due).getDate();
     if (unit === 'days') repeat.days = [L.parseDay(due).getDay()];
     edit({ due, repeat });
   });

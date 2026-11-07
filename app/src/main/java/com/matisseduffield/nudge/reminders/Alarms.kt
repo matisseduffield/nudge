@@ -243,6 +243,7 @@ object Alarms {
         val full = PendingIntent.getActivity(context, requestCode(alarm.task) + 5, page, PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
         val builder = NotificationCompat.Builder(context, URGENT_CHANNEL)
             .setSmallIcon(R.drawable.ic_notify)
+            .setColor(context.getColor(R.color.icon_bg))
             .setContentTitle(alarm.title)
             .setContentText(alarm.body)
             .setCategory(NotificationCompat.CATEGORY_ALARM)
@@ -297,6 +298,7 @@ object Alarms {
         val test = alarm.id == AlarmPlan.TEST_ID
         val builder = NotificationCompat.Builder(context, if (alarm.summary && !test) SUMMARY_CHANNEL else CHANNEL)
             .setSmallIcon(R.drawable.ic_notify)
+            .setColor(context.getColor(R.color.icon_bg))
             .setContentTitle(alarm.title)
             .setContentText(alarm.body)
             .setStyle(NotificationCompat.BigTextStyle().bigText(alarm.body))

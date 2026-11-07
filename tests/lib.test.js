@@ -146,8 +146,8 @@ test('the phone gets one sorted list, with the morning summary', () => {
   assert.deepEqual(alarms.map(x => x.title), ['A', 'B']);
   const sums = s.filter(x => x.summary);
   assert.equal(sums[0].at, '2026-11-07T08:00');
-  assert.equal(sums[0].title, '1 task today');
-  assert.equal(sums[0].body, 'A');
+  assert.equal(sums[0].title, '2 tasks today');   // Old is still overdue tomorrow
+  assert.equal(sums[0].body, 'A, Old');
   assert.deepEqual([...s.map(x => x.at)].sort(), s.map(x => x.at));
 });
 
@@ -402,4 +402,32 @@ test('a test reminder only promises a minute if it can keep to it', () => {
 test('a GitHub build never asks an urgent task about exact alarms', () => {
   assert.equal(L.loudBlocker({ ...ON, exact: false }, false), null);
   assert.equal(L.loudBlocker({ ...ON, exact: false, overlay: false }, false).what, 'overlay');
+});
+
+test('a morning summary set days ahead counts what will be overdue by then', () => {
+  // Planned now, rung later: if the app isn't opened in between, it should say what Today will show.
+  const state = { tasks: [task({ title: 'Late', due: '2026-11-04' }), task({ title: 'Weekly', due: '2026-11-06', repeat: { every: 1, unit: 'week' } })], prefs: { summary: '08:00' }, lists: [] };
+  const sums = L.schedule(state, NOW).filter(x => x.summary && x.id.startsWith('summary|'));
+  assert.equal(sums[0].at, '2026-11-07T08:00');
+  assert.equal(sums[0].body, 'Late, Weekly');
+  assert.equal(sums.length, 29);   // every day from tomorrow, none skipped for want of a new due date
+  // Ticked off, it goes from the plan.
+  const done = { ...state, tasks: state.tasks.map(t => ({ ...t, done: +NOW })) };
+  assert.equal(L.schedule(done, NOW).filter(x => x.summary && x.id.startsWith('summary|')).length, 0);
+});
+
+test('a weekday repeat never starts on a weekend', () => {
+  const r = { every: 1, unit: 'weekdays' };
+  assert.equal(L.fitToDays('2026-11-07', r), '2026-11-09');   // Saturday to Monday
+  assert.equal(L.fitToDays('2026-11-08', r), '2026-11-09');   // Sunday to Monday
+  assert.equal(L.fitToDays('2026-11-06', r), '2026-11-06');
+  assert.equal(L.fitToDays('2026-11-07', { every: 1, unit: 'week' }), '2026-11-07');   // other repeats keep their day
+  assert.equal(L.fitToDays('2026-11-07', null), '2026-11-07');
+  assert.equal(q('Standup weekdays').due, '2026-11-06');
+  assert.equal(q('Standup tomorrow every weekday').due, '2026-11-09');
+});
+
+test('a picked reminder time follows the 24-hour setting', () => {
+  assert.equal(L.reminderText({ at: '2026-11-07T17:30' }, NOW), 'Tomorrow, 5:30pm');
+  assert.equal(L.reminderText({ at: '2026-11-07T17:30' }, NOW, true), 'Tomorrow, 17:30');
 });
