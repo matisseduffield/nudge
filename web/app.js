@@ -124,11 +124,23 @@
     return r;
   }
   const taskList = (tasks, showList, sortable, headed) => { const box = el('div', 'tasks'); box.append(...tasks.map(t => row(t, showList, sortable, headed))); return box; };
-  function head(text, extra, cls = '') {
-    const h = el('p', `head ${cls}`, text);
-    if (extra) h.append(typeof extra === 'string' ? el('span', '', extra) : extra);
+  // A section heading. A count only where the rows themselves are hidden.
+  function head(text, actions = [], cls = '') {
+    const h = el('p', `head ${cls}`);
+    h.append(el('span', '', text));
+    const acts = actions.filter(Boolean);
+    if (acts.length) { const box = el('span', 'acts'); box.append(...acts); h.append(box); }
     return h;
   }
+  function action(text, key) {
+    const b = el('button', '', text);
+    b.type = 'button';
+    b.dataset[key] = '1';
+    return b;
+  }
+  // Done today and Completed: shown, or folded away behind their count.
+  const folded = (name, count, open, key, extra = []) =>
+    head(open ? name : `${name} (${count})`, [...(open ? extra : []), action(open ? 'Hide' : 'Show', key)]);
 
   // ---- the three tabs ----
   let showDoneToday = false;
@@ -136,22 +148,16 @@
     const { overdue, today } = L.today(state.tasks, now());
     const out = [];
     if (overdue.length) {
-      const move = el('button', '', 'Move to today');
-      move.type = 'button';
-      move.dataset.moveOverdue = '1';
       const movable = overdue.some(t => L.canMove(t, now()));
-      out.push(head(`Overdue (${overdue.length})`, movable ? move : '', 'late'), taskList(overdue));
+      out.push(head('Overdue', [movable && action('Move to today', 'moveOverdue')], 'late'), taskList(overdue));
     }
     const day = L.iso(now());
-    if (today.length) out.push(head('Today', String(today.length)), taskList(today, true, false, day));
+    // Without Overdue above it, the tab already says Today.
+    if (today.length) out.push(...(overdue.length ? [head('Today')] : []), taskList(today, true, false, day));
     const done = L.doneToday(state.tasks, now());
     if (!out.length) out.push(el('p', 'empty', state.tasks.length ? 'Nothing due today.' : 'Type a task below. Try: Call mum tomorrow 5pm #home'));
     if (done.length) {
-      const b = el('button', 'done-toggle');
-      b.type = 'button';
-      b.dataset.doneToday = '1';
-      b.append(el('span', '', `Done today (${done.length})`), el('span', '', showDoneToday ? 'Hide' : 'Show'));
-      out.push(b);
+      out.push(folded('Done today', done.length, showDoneToday, 'doneToday'));
       if (showDoneToday) out.push(taskList(done, true, false, day));
     }
     return out;
@@ -160,38 +166,39 @@
     const { days, someday } = L.upcoming(state.tasks, now());
     const out = [];
     for (const d of days) out.push(head(L.dayText(d.date, now())), taskList(d.tasks, true, false, d.date));
-    if (someday.length) out.push(head('No date', String(someday.length)), taskList(someday));
+    if (someday.length) out.push(head('No date'), taskList(someday));
     if (!out.length) out.push(el('p', 'empty', 'Nothing coming up.'));
     return out;
   }
   function renderLists() {
-    const box = el('div', 'rows');
+    const box = el('div', 'card lists');
     const count = id => state.tasks.filter(t => L.isOpen(t) && (t.list || null) === id).length;
     const line = (id, name, colour) => {
-      const b = el('button', 'list-row');
+      const b = el('button', 'row');
       b.type = 'button';
       b.dataset.list = id || 'inbox';
       const d = el('i', 'dot');
       d.style.background = colour;
-      b.append(d, el('b', '', name), el('span', '', String(count(id))));
+      const n = count(id);
+      b.append(d, el('span', 'row-k', name));
+      if (n) b.append(el('span', 'row-v', String(n)));
       return b;
     };
-    box.append(line(null, 'Inbox', 'var(--line-strong)'), ...state.lists.map(l => line(l.id, l.name, l.colour)));
-    const add = el('button', 'new-list', 'New list');
+    const add = el('button', 'row adder');
     add.type = 'button';
     add.dataset.newList = '1';
-    box.append(add);
+    add.append(el('span', 'row-k', 'New list'));
+    box.append(line(null, 'Inbox', 'var(--line-strong)'), ...state.lists.map(l => line(l.id, l.name, l.colour)), add);
     return [box];
   }
 
   function render() {
     for (const b of document.querySelectorAll('[data-tab]')) b.setAttribute('aria-selected', String(b.dataset.tab === tab));
-    const { overdue, today } = L.today(state.tasks, now());
-    $('meta').textContent = overdue.length ? `${overdue.length} overdue` : new Intl.DateTimeFormat('en-AU', { weekday: 'short', day: 'numeric', month: 'short' }).format(now());
+    // Overdue has its own heading, so this always says the day.
+    $('meta').textContent = new Intl.DateTimeFormat('en-AU', { weekday: 'short', day: 'numeric', month: 'short' }).format(now());
     $('view').replaceChildren(...{ today: renderToday, upcoming: renderUpcoming, lists: renderLists }[tab]());
     if ($('listPage').open) renderListPage();
     if ($('findPage').open) renderFind();
-    void today;
   }
 
   document.querySelector('.tabs').addEventListener('click', e => {
@@ -221,7 +228,7 @@
     if (open) return openTask(open.dataset.open);
     const list = e.target.closest('[data-list]');
     if (list) return openList(list.dataset.list === 'inbox' ? null : list.dataset.list);
-    if (e.target.closest('[data-new-list]')) return askList(null);
+    if (e.target.closest('[data-new-list]')) return newList();
     if (e.target.closest('[data-done-today]')) { showDoneToday = !showDoneToday; return render(); }
     if (e.target.closest('[data-move-overdue]')) {
       // Undo puts back only these dates, not anything done since.
@@ -279,41 +286,93 @@
   });
 
   // ---- one list ----
+  // Edit mode brings the name, the colours, Delete and the drag handles.
   let openListId;
-  let showDone = false;
+  let showDone = false, listEditing = false, freshList = null;
   function renderListPage() {
     const list = listOf(openListId);
     $('listTitle').textContent = list ? list.name : 'Inbox';
-    $('listEdit').hidden = !list;
     const mine = state.tasks.filter(t => !t.deleted && (t.list || null) === openListId);
     const open = L.listOrder(mine.filter(t => !t.done));
     const done = mine.filter(t => t.done).sort((a, b) => b.done - a.done);
+    listEditing = listEditing && !!list;
+    $('listEdit').hidden = !list;
+    $('listEdit').textContent = listEditing ? 'Done' : 'Edit';
+    $('listShare').hidden = listEditing || !open.length;
+    $('listDelete').hidden = !listEditing;
+    $('listForm').hidden = !listEditing;
+    if (listEditing) drawSwatches(list.colour);
     const out = [];
-    out.push(open.length ? taskList(open, false, true) : el('p', 'empty', 'Nothing here yet.'));
+    out.push(open.length ? taskList(open, false, listEditing) : el('p', 'empty', 'Nothing here yet.'));
     if (done.length) {
-      const b = el('button', 'done-toggle');
-      b.type = 'button';
-      b.dataset.doneToggle = '1';
-      b.append(el('span', '', `Completed (${done.length})`), el('span', '', showDone ? 'Hide' : 'Show'));
-      out.push(b);
-      if (showDone) {
-        out.push(taskList(done, false));
-        const clear = el('button', 'done-toggle', 'Clear completed');
-        clear.type = 'button';
-        clear.dataset.clearDone = '1';
-        out.push(clear);
-      }
+      out.push(folded('Completed', done.length, showDone, 'doneToggle', [action('Clear', 'clearDone')]));
+      if (showDone) out.push(taskList(done, false));
     }
-    const body = $('listBody');
-    body.replaceChildren(...out);
-    if (out[0].classList.contains('tasks')) out[0].style.marginTop = '10px';
+    $('listBody').replaceChildren(...out);
   }
-  function openList(id) {
+  function openList(id, editing = false) {
     openListId = id;
     showDone = false;
+    listEditing = editing;
+    $('listName').value = listOf(id)?.name || '';
     renderListPage();
     show('listPage');
   }
+  // It's made straight away and named in place, the name ready to type over.
+  function newList() {
+    const made = { id: L.newId(now()), name: 'New list', colour: COLOURS[state.lists.length % COLOURS.length] };
+    state.lists = [...state.lists, made];
+    freshList = made.id;
+    commit();
+    openList(made.id, true);
+    $('listName').focus();
+    $('listName').select();
+  }
+  const setList = change => {
+    freshList = null;   // touched, so it stays
+    state.lists = state.lists.map(l => (l.id === openListId ? { ...l, ...change } : l));
+  };
+  $('listEdit').addEventListener('click', () => {
+    listEditing = !listEditing;
+    $('listName').value = listOf(openListId)?.name || '';
+    saveNow();
+    renderListPage();
+  });
+  // Changes save as they're made. An empty name keeps the last one.
+  $('listName').addEventListener('input', () => {
+    const name = $('listName').value.trim();
+    if (!name) return;
+    setList({ name });
+    $('listTitle').textContent = name;
+    saveSoon();
+  });
+  $('listNameForm').addEventListener('submit', e => { e.preventDefault(); $('listName').blur(); });
+  function drawSwatches(current) {
+    $('listColours').replaceChildren(...COLOURS.map((c, i) => {
+      const b = el('button', 'swatch');
+      b.type = 'button';
+      b.style.background = c;
+      b.dataset.colour = c;
+      b.setAttribute('aria-pressed', String(c === current));
+      b.setAttribute('aria-label', `Colour ${i + 1}`);
+      return b;
+    }));
+  }
+  $('listColours').addEventListener('click', e => {
+    const b = e.target.closest('[data-colour]');
+    if (!b) return;
+    setList({ colour: b.dataset.colour });
+    save();
+    drawSwatches(b.dataset.colour);
+  });
+  // A list made by New list and left as it was, empty, goes again.
+  $('listPage').addEventListener('close', () => {
+    const fresh = listOf(freshList);
+    if (fresh && !state.tasks.some(t => t.list === fresh.id)) state.lists = state.lists.filter(l => l !== fresh);
+    freshList = null;
+    listEditing = false;
+    commit();
+  });
   $('listBody').addEventListener('click', e => {
     if (e.target.closest('[data-clear-done]')) {
       const stamp = +now();
@@ -346,7 +405,8 @@
     grip.setPointerCapture(e.pointerId);
     r.classList.add('lifted');
     const middle = x => { const b = x.getBoundingClientRect(); return b.top + b.height / 2; };
-    lifted = { id: e.pointerId, r, rows, from: rows.indexOf(r), to: rows.indexOf(r), y: e.clientY, h: r.getBoundingClientRect().height + 6, centres: rows.map(middle) };
+    const gap = parseFloat(getComputedStyle(r.parentElement).rowGap) || 0;
+    lifted = { id: e.pointerId, r, rows, from: rows.indexOf(r), to: rows.indexOf(r), y: e.clientY, h: r.getBoundingClientRect().height + gap, centres: rows.map(middle) };
   });
   $('listBody').addEventListener('pointermove', e => {
     if (!lifted || e.pointerId !== lifted.id) return;
@@ -396,53 +456,18 @@
     e.preventDefault();
     if (addFrom($('listBox').value, openListId)) $('listBox').value = '';
   });
-  $('listEdit').addEventListener('click', () => askList(openListId));
-
-  // New or edit: name, colour, and delete if it exists.
-  let asking = null, askColour = COLOURS[0], sure = false;
-  function askList(id) {
-    asking = id;
-    sure = false;
-    const list = listOf(id);
-    askColour = list?.colour || COLOURS[state.lists.length % COLOURS.length];
-    $('askTitle').textContent = list ? 'Edit list' : 'New list';
-    $('askName').value = list?.name || '';
-    $('askDelete').hidden = !list;
-    $('askDelete').textContent = 'Delete list';
-    // Naming a new list wants the keyboard. Editing one may only be for its colour.
-    $('listAsk').querySelector('[data-cancel]').autofocus = !!list;
-    drawSwatches();
+  // Its tasks go to the Inbox rather than vanish, and it asks first, saying so.
+  $('listDelete').addEventListener('click', () => {
+    const list = listOf(openListId);
+    if (!list) return;
+    const n = state.tasks.filter(t => !t.deleted && t.list === list.id).length;
+    $('askTitle').textContent = `Delete ${list.name}?`;
+    $('askText').textContent = n ? `Its ${n === 1 ? 'task moves' : `${n} tasks move`} to Inbox.` : 'It has no tasks.';
     show('listAsk');
-  }
-  function drawSwatches() {
-    $('askColours').replaceChildren(...COLOURS.map(c => {
-      const b = el('button', 'swatch');
-      b.type = 'button';
-      b.style.background = c;
-      b.dataset.colour = c;
-      b.setAttribute('aria-pressed', String(c === askColour));
-      b.setAttribute('aria-label', `Colour ${COLOURS.indexOf(c) + 1}`);
-      return b;
-    }));
-  }
-  $('askColours').addEventListener('click', e => {
-    const b = e.target.closest('[data-colour]');
-    if (!b) return;
-    askColour = b.dataset.colour;
-    drawSwatches();
-  });
-  $('askForm').addEventListener('submit', () => {
-    const name = $('askName').value.trim();
-    if (!name) return;
-    if (asking) state.lists = state.lists.map(l => (l.id === asking ? { ...l, name, colour: askColour } : l));
-    else state.lists = [...state.lists, { id: L.newId(now()), name, colour: askColour }];
-    commit();
   });
   $('listAsk').addEventListener('click', e => { if (e.target.closest('[data-cancel]')) $('listAsk').close(); });
-  // Its tasks go to the Inbox rather than vanish, and it takes two taps.
   $('askDelete').addEventListener('click', () => {
-    if (!sure) { sure = true; $('askDelete').textContent = 'Tap again. Its tasks move to Inbox'; return; }
-    const id = asking;
+    const id = openListId;
     state.lists = state.lists.filter(l => l.id !== id);
     state.tasks = state.tasks.map(t => (t.list === id ? { ...t, list: null, order: undefined } : t));
     $('listAsk').close();
@@ -694,7 +719,6 @@
   function renderFind() {
     const hits = L.search(state.tasks, $('findBox').value);
     $('findBody').replaceChildren(...(hits.length ? [taskList(hits)] : $('findBox').value.trim() ? [el('p', 'empty', 'Nothing matches.')] : []));
-    if (hits.length) $('findBody').firstChild.style.marginTop = '10px';
   }
   $('searchBtn').addEventListener('click', () => {
     $('findBox').value = '';
@@ -709,7 +733,8 @@
   function renderHealth() {
     $('healthBox').hidden = !health;
     const warning = L.reminderWarning(health, askExact);
-    $('warn').hidden = !warning || !state.tasks.some(t => L.isOpen(t) && t.reminders.length);
+    // While Ring on time? asks, the banner would only say it again.
+    $('warn').hidden = !warning || $('exactAsk').open || !state.tasks.some(t => L.isOpen(t) && t.reminders.length);
     $('warn').textContent = warning || '';
     if (!health) return;
     const line = (name, ok, what) => {
@@ -740,7 +765,9 @@
     if (!L.shouldAskExact(health, askExact, hasReminders, read('askedExact'))) return;
     write('askedExact', true);
     show('exactAsk');
+    renderHealth();
   }
+  $('exactAsk').addEventListener('close', renderHealth);
   $('exactLater').addEventListener('click', () => $('exactAsk').close());
   $('exactGo').addEventListener('click', () => { $('exactAsk').close(); toApp({ type: 'openSettings', what: 'alarms' }); });
 
@@ -823,15 +850,17 @@
       updateSize = m.size > 0 ? m.size : updateSize;
       const notes = Array.isArray(m.notes) ? m.notes.filter(n => typeof n === 'string' && n).slice(0, 5) : [];
       $('updateNotes').replaceChildren(...notes.map(n => el('li', '', n)));
-      setShown('updateNotes', notes.length > 0);
     }
     const v = {
       available: { title: 'Update available', msg: '', actions: true, progress: false, go: 'Update' },
       downloading: { title: 'Downloading update', msg: '', actions: false, progress: true },
-      installing: { title: 'Installing update', actions: false, progress: true, msg: 'Confirm on the next screen. The first time, Android asks you to allow installs from Nudge. Turn it on, then go back.' },
+      installing: { title: 'Installing update', actions: false, progress: false, msg: 'Confirm on the next screen.' },
       failed: { title: 'Update didn’t finish', msg: m.message || 'Something went wrong. Try again.', actions: true, progress: false, go: 'Try again' },
     }[m.state];
     if (!v) return;
+    // What's new and its size help decide; once it's under way they're just in the way.
+    setShown('updateSub', m.state === 'available');
+    setShown('updateNotes', m.state === 'available' && $('updateNotes').childElementCount > 0);
     $('updateTitle').textContent = v.title;
     $('updateSub').textContent = [`Nudge ${updateVersion}`, updateSize ? `${(updateSize / 1e6).toFixed(1)} MB` : ''].filter(Boolean).join(' · ');
     $('updateMsg').textContent = v.msg;

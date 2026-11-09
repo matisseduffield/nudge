@@ -9,7 +9,7 @@
 <title>Nudge</title>
 <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%2218 18 72 72%22><rect x=%2218%22 y=%2218%22 width=%2272%22 height=%2272%22 rx=%2217%22 fill=%22%23E5533D%22/><g transform=%22translate(0 -3)%22><path d=%22M54,28C42,28 35,37 35,49V62L29.5,71C28.5,72.7 29.7,75 31.7,75H76.3C78.3,75 79.5,72.7 78.5,71L73,62V49C73,37 66,28 54,28ZM42.17,55.33L49.17,62.33A3.3,3.3 0 0 0 54.03,62.11L66.53,47.11A3.3,3.3 0 0 0 61.47,42.89L51.28,55.12L46.83,50.67A3.3,3.3 0 0 0 42.17,55.33Z%22 fill=%22%23FFFFFF%22 fill-rule=%22evenodd%22/><path d=%22M46,79.5a8,8 0 0 0 16,0Z%22 fill=%22%23FFFFFF%22/></g></svg>">
 <link rel="preload" href="fonts/hanken-grotesk-latin.woff2" as="font" type="font/woff2" crossorigin>
-<link rel="stylesheet" href="style.css?v=6">
+<link rel="stylesheet" href="style.css?v=7">
 </head>
 <body>
 <div class="app">
@@ -79,9 +79,17 @@
     <button class="icon-btn back" type="button" data-close aria-label="Back"><svg width="10" height="16" viewBox="0 0 10 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 2 2 8l6 6"/></svg></button>
     <h2 id="listTitle"></h2>
     <button class="tool" id="listShare" type="button">Share</button>
+    <button class="tool danger" id="listDelete" type="button" hidden>Delete</button>
     <button class="tool" id="listEdit" type="button">Edit</button>
   </div>
-  <div class="page-body" id="listBody"></div>
+  <div class="page-body">
+    <!-- Edit mode: name and colour save as they change, like a task's. -->
+    <div class="card list-form" id="listForm" hidden>
+      <form class="row" id="listNameForm" autocomplete="off"><input class="row-in" id="listName" type="text" maxlength="30" placeholder="Name" aria-label="List name" enterkeyhint="done" autocapitalize="sentences"></form>
+      <div class="row swatches" id="listColours" role="group" aria-label="Colour"></div>
+    </div>
+    <div class="list-body" id="listBody"></div>
+  </div>
   <form class="quick page-quick" id="listQuick" autocomplete="off">
     <div class="quick-row">
       <input class="box" id="listBox" type="text" placeholder="Add to this list" enterkeyhint="done" autocapitalize="sentences" aria-label="Add to this list">
@@ -187,28 +195,24 @@
 <!-- Why exact alarms, before Android's settings page -->
 <dialog class="ask" id="exactAsk" aria-labelledby="exactTitle">
   <h2 id="exactTitle">Ring on time?</h2>
-  <p class="ask-text">Android can hold a reminder back to save battery, by up to an hour or longer. To ring at the time you set, Nudge needs Alarms &amp; reminders turned on in the next screen. Without it, reminders still ring, just later.</p>
+  <p class="ask-text">Android can delay reminders by an hour or more. Allow Alarms &amp; reminders so they ring on time.</p>
   <div class="actions">
     <button class="btn" id="exactLater" type="button">Not now</button>
-    <button class="btn primary" id="exactGo" type="button">Open settings</button>
+    <button class="btn primary" id="exactGo" type="button">Allow</button>
   </div>
 </dialog>
 
-<!-- Naming a list -->
-<dialog class="ask" id="listAsk" aria-labelledby="askTitle">
-  <form id="askForm" method="dialog" autocomplete="off">
-    <h2 id="askTitle">New list</h2>
-    <input class="box" id="askName" type="text" maxlength="30" placeholder="Name" autocapitalize="sentences">
-    <div class="swatches" id="askColours" role="group" aria-label="Colour"></div>
-    <button class="tool danger" id="askDelete" type="button" hidden>Delete list</button>
-    <div class="actions">
-      <button class="btn" type="button" data-cancel>Cancel</button>
-      <button class="btn primary" type="submit">Save</button>
-    </div>
-  </form>
+<!-- Deleting a list. Cancel comes first, so it has the focus. -->
+<dialog class="ask" id="listAsk" aria-labelledby="askTitle" aria-describedby="askText">
+  <h2 id="askTitle"></h2>
+  <p class="ask-text" id="askText"></p>
+  <div class="actions">
+    <button class="btn" type="button" data-cancel>Cancel</button>
+    <button class="btn danger" id="askDelete" type="button">Delete</button>
+  </div>
 </dialog>
 
 <script src="lib.js?v=3"></script>
-<script src="app.js?v=5"></script>
+<script src="app.js?v=6"></script>
 </body>
 </html>
