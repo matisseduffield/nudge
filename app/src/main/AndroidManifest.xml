@@ -19,6 +19,8 @@
         android:label="@string/app_name"
         android:supportsRtl="true"
         android:theme="@style/Theme.Nudge">
+        <!-- The WebView sends Google no usage statistics. -->
+        <meta-data android:name="android.webkit.WebView.MetricsOptOut" android:value="true" />
 
         <!-- Rotation and resizing are handled in place so the WebView keeps
              its state; a light/dark switch still recreates for new colors. -->
