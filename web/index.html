@@ -9,7 +9,7 @@
 <title>Nudge</title>
 <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%2218 18 72 72%22><rect x=%2218%22 y=%2218%22 width=%2272%22 height=%2272%22 rx=%2217%22 fill=%22%23E5533D%22/><g transform=%22translate(0 -3)%22><path d=%22M54,28C42,28 35,37 35,49V62L29.5,71C28.5,72.7 29.7,75 31.7,75H76.3C78.3,75 79.5,72.7 78.5,71L73,62V49C73,37 66,28 54,28ZM42.17,55.33L49.17,62.33A3.3,3.3 0 0 0 54.03,62.11L66.53,47.11A3.3,3.3 0 0 0 61.47,42.89L51.28,55.12L46.83,50.67A3.3,3.3 0 0 0 42.17,55.33Z%22 fill=%22%23FFFFFF%22 fill-rule=%22evenodd%22/><path d=%22M46,79.5a8,8 0 0 0 16,0Z%22 fill=%22%23FFFFFF%22/></g></svg>">
 <link rel="preload" href="fonts/hanken-grotesk-latin.woff2" as="font" type="font/woff2" crossorigin>
-<link rel="stylesheet" href="style.css?v=4">
+<link rel="stylesheet" href="style.css?v=5">
 </head>
 <body>
 <div class="app">
@@ -97,61 +97,48 @@
     <h2>Task</h2>
     <button class="tool danger" id="taskDelete" type="button">Delete</button>
   </div>
-  <div class="page-body form">
-    <input class="title-box" id="fTitle" type="text" placeholder="Title" aria-label="Title" autocapitalize="sentences">
-    <textarea class="box notes" id="fNotes" rows="2" placeholder="Notes" aria-label="Notes"></textarea>
+  <div class="page-body editor">
+    <div class="card text">
+      <input class="title-in" id="fTitle" type="text" placeholder="Title" aria-label="Title" autocapitalize="sentences">
+      <textarea class="notes-in" id="fNotes" rows="1" placeholder="Notes" aria-label="Notes"></textarea>
+    </div>
 
-    <div class="chips" id="fQuickDates" role="group" aria-label="Quick dates">
-      <button class="chip plain" type="button" data-date="0">Today</button>
-      <button class="chip plain" type="button" data-date="1">Tomorrow</button>
-      <button class="chip plain" type="button" data-date="7">Next week</button>
-      <button class="chip plain" type="button" data-date="">No date</button>
-    </div>
-    <div class="field-row">
-      <label class="field"><span>Date</span><input class="box" id="fDue" type="date"></label>
-      <label class="field"><span>Time</span><input class="box" id="fTime" type="time"></label>
-    </div>
-    <div class="field-row">
-      <label class="field"><span>Repeat</span>
-        <select class="box" id="fRepeat">
+    <div class="card">
+      <div class="row"><label class="row-hit"><span class="row-k">Date</span><span class="row-v" id="vDue"></span><input class="over" id="fDue" type="date"></label><button class="row-x" id="xDue" type="button" aria-label="Clear the date" hidden><svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M2.5 2.5l7 7M9.5 2.5l-7 7"/></svg></button></div>
+      <div class="row"><label class="row-hit"><span class="row-k">Time</span><span class="row-v" id="vTime"></span><input class="over" id="fTime" type="time"></label><button class="row-x" id="xTime" type="button" aria-label="Clear the time" hidden><svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M2.5 2.5l7 7M9.5 2.5l-7 7"/></svg></button></div>
+      <div class="row"><label class="row-hit"><span class="row-k">Repeat</span><span class="row-v" id="vRepeat"></span>
+        <select class="over" id="fRepeat">
           <option value="">Never</option><option value="1 day">Daily</option><option value="1 weekdays">Weekdays</option><option value="1 week">Weekly</option><option value="1 days">Certain days</option>
           <option value="2 week">Every 2 weeks</option><option value="1 month">Monthly</option><option value="3 month">Every 3 months</option><option value="1 year">Yearly</option>
-        </select>
-      </label>
-      <label class="field" id="fUntilWrap"><span>Until</span><input class="box" id="fUntil" type="date"></label>
+        </select></label></div>
+      <div class="row days" id="fDaysRow" hidden><div class="week" id="fDays" role="group" aria-label="Days of the week"></div></div>
+      <div class="row" id="fUntilWrap" hidden><label class="row-hit"><span class="row-k">Until</span><span class="row-v" id="vUntil"></span><input class="over" id="fUntil" type="date"></label><button class="row-x" id="xUntil" type="button" aria-label="Repeat for ever" hidden><svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M2.5 2.5l7 7M9.5 2.5l-7 7"/></svg></button></div>
     </div>
 
-    <div class="week" id="fDays" role="group" aria-label="Days of the week" hidden></div>
-
-    <div class="group">
-      <p class="label">Reminders</p>
-      <div class="chips" id="fReminders"></div>
-      <div class="field-row">
-        <select class="box" id="fAddReminder" aria-label="Add a reminder">
+    <p class="sec">Reminders</p>
+    <div class="card">
+      <div class="rows-in" id="fReminders"></div>
+      <div class="row adder"><label class="row-hit"><span class="row-k">Add a reminder</span>
+        <select class="over" id="fAddReminder" aria-label="Add a reminder">
           <option value="">Add a reminder</option><option value="0">At the time</option><option value="10">10 min before</option><option value="30">30 min before</option>
           <option value="60">1 hour before</option><option value="1440">1 day before</option><option value="10080">1 week before</option><option value="custom">Pick a date and time</option>
-        </select>
-      </div>
-      <input class="box" id="fCustom" type="datetime-local" aria-label="Reminder date and time" hidden>
-      <label class="switch-row tall">
-        <span><b>Ring like a call</b><small>Takes over the screen until you deal with it. For the urgent ones.</small></span>
-        <input id="fLoud" type="checkbox">
-      </label>
-      <button class="warn" id="fLoudFix" type="button" hidden></button>
-      <label class="field"><span>Keep nudging until done</span>
-        <select class="box" id="fNag"><option value="0">Off</option><option value="5">Every 5 minutes</option><option value="15">Every 15 minutes</option><option value="30">Every 30 minutes</option><option value="60">Every hour</option></select>
-      </label>
+        </select></label></div>
+      <div class="row" id="fCustomRow" hidden><label class="row-hit"><span class="row-k">Date and time</span><span class="row-v">Pick</span><input class="over" id="fCustom" type="datetime-local" aria-label="Reminder date and time"></label></div>
+      <label class="row tall"><span class="row-k"><b>Ring like a call</b><small>Takes over the screen until you deal with it. For the urgent ones.</small></span><input class="switch" id="fLoud" type="checkbox"></label>
+      <div class="row"><label class="row-hit"><span class="row-k">Keep nudging</span><span class="row-v" id="vNag"></span>
+        <select class="over" id="fNag" aria-label="Keep nudging until done"><option value="0">Off</option><option value="5">Every 5 minutes</option><option value="15">Every 15 minutes</option><option value="30">Every 30 minutes</option><option value="60">Every hour</option></select></label></div>
+    </div>
+    <button class="warn" id="fLoudFix" type="button" hidden></button>
+
+    <div class="card">
+      <div class="row"><label class="row-hit"><span class="row-k">List</span><span class="row-v" id="vList"></span><select class="over" id="fList" aria-label="List"></select></label></div>
+      <div class="row"><label class="row-hit"><span class="row-k">Priority</span><span class="row-v" id="vPri"></span><select class="over" id="fPri" aria-label="Priority"><option value="0">None</option><option value="1">High</option><option value="2">Urgent</option></select></label></div>
     </div>
 
-    <div class="field-row">
-      <label class="field"><span>List</span><select class="box" id="fList"></select></label>
-      <label class="field"><span>Priority</span><select class="box" id="fPri"><option value="0">None</option><option value="1">High</option><option value="2">Urgent</option></select></label>
-    </div>
-
-    <div class="group">
-      <p class="label">Steps</p>
-      <div id="fSubs"></div>
-      <form id="fSubForm" autocomplete="off"><input class="box" id="fSubBox" type="text" placeholder="Add a step" enterkeyhint="done" aria-label="Add a step"></form>
+    <p class="sec">Steps</p>
+    <div class="card">
+      <div class="rows-in" id="fSubs"></div>
+      <form class="row" id="fSubForm" autocomplete="off"><input class="row-in" id="fSubBox" type="text" placeholder="Add a step" enterkeyhint="done" aria-label="Add a step"></form>
     </div>
   </div>
 </dialog>
@@ -178,16 +165,16 @@
     </div>
     <div class="group">
       <p class="label">Reminders</p>
-      <label class="field"><span>New tasks with a date</span>
-        <select class="box" id="sDefault"><option value="">No reminder</option><option value="0">At the time</option><option value="10">10 min before</option><option value="30">30 min before</option><option value="60">1 hour before</option><option value="1440">1 day before</option></select>
-      </label>
-      <label class="field"><span>Morning summary</span>
-        <select class="box" id="sSummary"><option value="">Off</option><option value="07:00">7am</option><option value="08:00">8am</option><option value="09:00">9am</option></select>
-      </label>
+      <div class="card">
+        <div class="row"><label class="row-hit"><span class="row-k">New tasks with a date</span><span class="row-v" id="vDefault"></span>
+          <select class="over" id="sDefault" aria-label="Reminder for new tasks with a date"><option value="">No reminder</option><option value="0">At the time</option><option value="10">10 min before</option><option value="30">30 min before</option><option value="60">1 hour before</option><option value="1440">1 day before</option></select></label></div>
+        <div class="row"><label class="row-hit"><span class="row-k">Morning summary</span><span class="row-v" id="vSummary"></span>
+          <select class="over" id="sSummary" aria-label="Morning summary"><option value="">Off</option><option value="07:00">7am</option><option value="08:00">8am</option><option value="09:00">9am</option></select></label></div>
+      </div>
     </div>
     <div class="group">
       <p class="label">Display</p>
-      <label class="switch-row"><span>24-hour time</span><input id="s24" type="checkbox"></label>
+      <div class="card"><label class="row"><span class="row-k">24-hour time</span><input class="switch" id="s24" type="checkbox"></label></div>
     </div>
     <div class="group" id="trashBox" hidden>
       <p class="label">Deleted</p>
@@ -222,6 +209,6 @@
 </dialog>
 
 <script src="lib.js?v=3"></script>
-<script src="app.js?v=3"></script>
+<script src="app.js?v=4"></script>
 </body>
 </html>

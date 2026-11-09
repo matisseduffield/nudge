@@ -477,7 +477,7 @@
     $('fList').replaceChildren(el('option', '', 'Inbox'), ...state.lists.map(l => { const o = el('option', '', l.name); o.value = l.id; return o; }));
     $('fList').firstChild.value = '';
     $('fList').value = t.list || '';
-    $('fCustom').hidden = true;
+    $('fCustomRow').hidden = true;
     $('taskDelete').textContent = 'Delete';
     drawTaskExtras();
     show('taskPage');
@@ -496,7 +496,7 @@
     renderLoudFix();
     $('fUntil').value = t.repeat?.until || '';
     const days = t.repeat?.unit === 'days' ? t.repeat.days || [] : null;
-    $('fDays').hidden = !days;
+    $('fDaysRow').hidden = !days;
     if (days) {
       $('fDays').replaceChildren(...[1, 2, 3, 4, 5, 6, 0].map(d => {
         const b = el('button', '', ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'][d]);
@@ -508,15 +508,17 @@
     }
     $('fReminders').replaceChildren(...t.reminders.map((r, i) => {
       const text = L.reminderText(r, now(), state.prefs.use24);
-      const b = el('button', 'chip', text);
+      const row = el('div', 'row');
+      const b = el('button', 'row-x');
       b.type = 'button';
       b.dataset.dropReminder = i;
       b.setAttribute('aria-label', `Remove reminder: ${text}`);
-      b.insertAdjacentHTML('beforeend', ICON.cross);
-      return b;
+      b.innerHTML = ICON.cross;
+      row.append(el('span', 'row-k', text), b);
+      return row;
     }));
     $('fSubs').replaceChildren(...t.subs.map(s => {
-      const r = el('div', s.done ? 'step done' : 'step');
+      const r = el('div', s.done ? 'row step done' : 'row step');
       const tick = el('button', 'tick');
       tick.type = 'button';
       tick.dataset.stepTick = s.id;
@@ -530,7 +532,37 @@
       r.append(tick, el('span', '', s.title), x);
       return r;
     }));
+    rowValues(t);
   }
+  // Each row shows its value on the right, or a quiet None.
+  const chosen = sel => sel.selectedOptions[0]?.textContent || '';
+  function value(id, text, set = !!text) {
+    $(id).textContent = text || 'None';
+    $(id).classList.toggle('set', set);
+  }
+  function rowValues(t) {
+    value('vDue', t.due ? L.dayText(t.due, now()) : '');
+    value('vTime', L.timeText(t.time, state.prefs.use24));
+    value('vRepeat', chosen($('fRepeat')), !!t.repeat);
+    value('vUntil', t.repeat?.until ? L.dayText(t.repeat.until, now()) : 'Never', !!t.repeat?.until);
+    value('vNag', chosen($('fNag')), $('fNag').value !== '0');
+    value('vList', chosen($('fList')), true);
+    value('vPri', chosen($('fPri')), t.pri > 0);
+    $('xDue').hidden = !t.due;
+    $('xTime').hidden = !t.time;
+    $('xUntil').hidden = !t.repeat?.until;
+    $('fNotes').style.height = '';
+    $('fNotes').style.height = `${$('fNotes').scrollHeight}px`;
+  }
+  // A clear button empties its field as if it had been cleared by hand.
+  for (const [x, field] of [['xDue', 'fDue'], ['xTime', 'fTime'], ['xUntil', 'fUntil']]) {
+    $(x).addEventListener('click', () => { $(field).value = ''; $(field).dispatchEvent(new Event('change')); });
+  }
+  // Tapping anywhere on a date or time row opens its picker, on a computer too.
+  for (const input of document.querySelectorAll('input.over')) {
+    input.addEventListener('click', () => { try { input.showPicker(); } catch {} });
+  }
+  $('fNotes').addEventListener('input', () => { $('fNotes').style.height = ''; $('fNotes').style.height = `${$('fNotes').scrollHeight}px`; });
   const edit = change => {
     // Ringing like a call goes with the last reminder, or adding one later would bring it back unseen.
     const t = { ...task(editing), ...change };
@@ -586,12 +618,6 @@
     $('fDue').value = due;
     edit({ repeat, due });
   });
-  $('fQuickDates').addEventListener('click', e => {
-    const b = e.target.closest('[data-date]');
-    if (!b) return;
-    $('fDue').value = b.dataset.date === '' ? '' : L.addDays(L.iso(now()), Number(b.dataset.date));
-    $('fDue').dispatchEvent(new Event('change'));
-  });
   $('fUntil').addEventListener('change', () => {
     const t = task(editing);
     if (t.repeat) edit({ repeat: { ...t.repeat, until: $('fUntil').value || undefined } });
@@ -600,7 +626,7 @@
     const v = $('fAddReminder').value;
     $('fAddReminder').value = '';
     if (!v) return;
-    if (v === 'custom') { $('fCustom').hidden = false; return $('fCustom').focus(); }
+    if (v === 'custom') { $('fCustomRow').hidden = false; $('fCustom').focus(); try { $('fCustom').showPicker(); } catch {} return; }
     const t = task(editing);
     const before = Number(v);
     if (t.reminders.some(r => r.before === before)) return;
@@ -614,7 +640,7 @@
     if (!at) return;
     const t = task(editing);
     $('fCustom').value = '';
-    $('fCustom').hidden = true;
+    $('fCustomRow').hidden = true;
     edit({ reminders: [...t.reminders, { at }] });
   });
   $('fReminders').addEventListener('click', e => {
@@ -728,6 +754,7 @@
     $('sDefault').value = state.prefs.defaultReminder == null ? '' : String(state.prefs.defaultReminder);
     $('sSummary').value = state.prefs.summary || '';
     $('s24').checked = !!state.prefs.use24;
+    settingsValues();
     renderTrash();
     renderHealth();
     show('settingsPage');
@@ -747,8 +774,12 @@
   }
   $('settingsBtn').addEventListener('click', openSettings);
   const pref = change => { state.prefs = { ...state.prefs, ...change }; commit(); };
-  $('sDefault').addEventListener('change', () => pref({ defaultReminder: $('sDefault').value === '' ? null : Number($('sDefault').value) }));
-  $('sSummary').addEventListener('change', () => pref({ summary: $('sSummary').value || null }));
+  function settingsValues() {
+    value('vDefault', chosen($('sDefault')), $('sDefault').value !== '');
+    value('vSummary', chosen($('sSummary')), $('sSummary').value !== '');
+  }
+  $('sDefault').addEventListener('change', () => { pref({ defaultReminder: $('sDefault').value === '' ? null : Number($('sDefault').value) }); settingsValues(); });
+  $('sSummary').addEventListener('change', () => { pref({ summary: $('sSummary').value || null }); settingsValues(); });
   $('s24').addEventListener('change', () => pref({ use24: $('s24').checked }));
 
   // ---- Android app bridge (absent in a browser) ----
