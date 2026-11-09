@@ -5,7 +5,6 @@ import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
 import android.view.View
-import android.widget.TextView
 import androidx.activity.ComponentActivity
 import androidx.activity.OnBackPressedCallback
 import com.matisseduffield.nudge.R
@@ -63,8 +62,7 @@ class AlarmActivity : ComponentActivity() {
         title = from.getStringExtra("title").orEmpty()
         body = from.getStringExtra("body").orEmpty()
         nag = from.getIntExtra("nag", 0)
-        findViewById<TextView>(R.id.alarm_title).text = title
-        findViewById<TextView>(R.id.alarm_body).text = body
+        AlarmFace.bind(findViewById(android.R.id.content), title, body)
         // Left alone, the page goes when the ringing does, and nudging brings it back.
         val left = from.getLongExtra("until", 0) - System.currentTimeMillis()
         timeout.removeCallbacksAndMessages(null)

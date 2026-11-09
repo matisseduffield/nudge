@@ -2,6 +2,7 @@ package com.matisseduffield.nudge.reminders
 
 import java.time.LocalDate
 import java.time.LocalDateTime
+import java.time.LocalTime
 import java.time.format.DateTimeFormatter
 import java.util.Locale
 
@@ -47,6 +48,33 @@ object AlarmPlan {
         // The page writes the day, then the time if there is one.
         val time = alarm.body.substringAfter(", ", "")
         return alarm.copy(body = listOf(date, time).filter { it.isNotEmpty() }.joinToString(", "))
+    }
+
+    /** The alarm page's clock: 3:00pm, or 15:00. */
+    fun clock(time: LocalTime, use24: Boolean): String =
+        if (use24) "%02d:%02d".format(time.hour, time.minute)
+        else "${(time.hour + 11) % 12 + 1}:${"%02d".format(time.minute)}${if (time.hour < 12) "am" else "pm"}"
+
+    /** Whether the page wrote [body] in 24-hour time, following its setting. Null when there's no time in it to tell by. */
+    fun uses24(body: String): Boolean? = when {
+        Regex("""\d(am|pm)\b""").containsMatchIn(body) -> false
+        Regex("""\b\d{1,2}:\d{2}\b""").containsMatchIn(body) -> true
+        else -> null
+    }
+
+    // A time the way the page writes one: 3pm, 3:30pm or 15:00.
+    private fun pageTime(time: LocalTime, use24: Boolean): String =
+        if (use24) clock(time, true)
+        else "${(time.hour + 11) % 12 + 1}${if (time.minute > 0) ":%02d".format(time.minute) else ""}${if (time.hour < 12) "am" else "pm"}"
+
+    /**
+     * The line under the title, or nothing. "Today" at the time on the clock says nothing
+     * new, so it goes. Another day, or another time (a reminder ahead of time, a snooze), stays.
+     */
+    fun alarmLine(body: String, now: LocalTime, use24: Boolean): String {
+        if (body == "Today") return ""
+        val time = body.removePrefix("Today, ")
+        return if (time != body && time == pageTime(now, use24)) "" else body
     }
 
     /** Past alarms are finished with, once [missed] has had them. */

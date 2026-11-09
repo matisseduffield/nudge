@@ -9,7 +9,6 @@ import android.view.ContextThemeWrapper
 import android.view.LayoutInflater
 import android.view.View
 import android.view.WindowManager
-import android.widget.TextView
 import com.matisseduffield.nudge.R
 
 /**
@@ -56,8 +55,7 @@ object AlarmOverlay {
     private fun bind(context: Context, next: Alarm) {
         val root = view ?: return
         alarm = next
-        root.findViewById<TextView>(R.id.alarm_title).text = next.title
-        root.findViewById<TextView>(R.id.alarm_body).text = next.body
+        AlarmFace.bind(root, next.title, next.body)
         root.findViewById<View>(R.id.alarm_done).setOnClickListener { Alarms.done(context, next.task, next.occ) }
         root.findViewById<View>(R.id.alarm_ten).setOnClickListener { snooze(context, next, 10) }
         root.findViewById<View>(R.id.alarm_hour).setOnClickListener { snooze(context, next, 60) }

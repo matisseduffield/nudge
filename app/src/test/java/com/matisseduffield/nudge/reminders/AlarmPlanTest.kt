@@ -5,6 +5,7 @@ import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.time.LocalDateTime
+import java.time.LocalTime
 
 class AlarmPlanTest {
     private val now = LocalDateTime.of(2026, 11, 6, 10, 0)
@@ -133,5 +134,35 @@ class AlarmPlanTest {
         assertEquals(until, once.single().at)
         // Snoozing twice leaves one.
         assertEquals(1, AlarmPlan.afterSnooze(once, a, until.plusHours(1)).size)
+    }
+
+    @Test fun theClockShowsMinutesEitherWay() {
+        assertEquals("3:00pm", AlarmPlan.clock(LocalTime.of(15, 0), false))
+        assertEquals("12:05am", AlarmPlan.clock(LocalTime.of(0, 5), false))
+        assertEquals("12:30pm", AlarmPlan.clock(LocalTime.of(12, 30), false))
+        assertEquals("15:00", AlarmPlan.clock(LocalTime.of(15, 0), true))
+        assertEquals("09:30", AlarmPlan.clock(LocalTime.of(9, 30), true))
+    }
+
+    @Test fun theClockFollowsThePagesSetting() {
+        assertEquals(false, AlarmPlan.uses24("Today, 3pm"))
+        assertEquals(false, AlarmPlan.uses24("Tomorrow, 9:30am"))
+        assertEquals(true, AlarmPlan.uses24("Today, 15:00"))
+        assertNull(AlarmPlan.uses24("Today"))
+        assertNull(AlarmPlan.uses24("Mon 9 Nov"))
+    }
+
+    @Test fun todayAtTheTimeOnTheClockGoes() {
+        assertEquals("", AlarmPlan.alarmLine("Today, 3pm", LocalTime.of(15, 0, 20), false))
+        assertEquals("", AlarmPlan.alarmLine("Today, 3:30pm", LocalTime.of(15, 30), false))
+        assertEquals("", AlarmPlan.alarmLine("Today, 15:00", LocalTime.of(15, 0), true))
+        assertEquals("", AlarmPlan.alarmLine("Today", LocalTime.of(9, 0), false))
+    }
+
+    @Test fun anotherDayOrTimeStays() {
+        // Half an hour ahead, or snoozed: the task's own time still matters.
+        assertEquals("Today, 3pm", AlarmPlan.alarmLine("Today, 3pm", LocalTime.of(14, 30), false))
+        assertEquals("Tomorrow, 9am", AlarmPlan.alarmLine("Tomorrow, 9am", LocalTime.of(9, 0), false))
+        assertEquals("Mon 9 Nov, 3pm", AlarmPlan.alarmLine("Mon 9 Nov, 3pm", LocalTime.of(15, 0), false))
     }
 }

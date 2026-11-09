@@ -12,26 +12,32 @@
     android:orientation="vertical"
     android:padding="24dp">
 
-    <Space
-        android:layout_width="match_parent"
-        android:layout_height="0dp"
-        android:layout_weight="1" />
-
+    <!-- The time now, like a phone's own alarm. -->
     <TextView
+        android:id="@+id/alarm_time"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:text="@string/alarm_label"
+        android:layout_marginTop="12dp"
+        android:fontFamily="@font/hanken_grotesk"
         android:textColor="@color/alarm_muted"
-        android:textSize="15sp" />
+        android:textSize="20sp" />
 
+    <!-- A fixed box, so a long title shrinks to fit rather than being cut short. It sits
+         at the bottom of its box, just over the line below it. -->
     <TextView
         android:id="@+id/alarm_title"
         android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:layout_marginTop="10dp"
+        android:layout_height="0dp"
+        android:layout_weight="2"
+        android:autoSizeMaxTextSize="34sp"
+        android:autoSizeMinTextSize="22sp"
+        android:autoSizeStepGranularity="1sp"
+        android:autoSizeTextType="uniform"
         android:ellipsize="end"
-        android:gravity="center"
-        android:maxLines="3"
+        android:fontFamily="@font/hanken_grotesk"
+        android:gravity="center_horizontal|bottom"
+        android:lineSpacingMultiplier="1.05"
+        android:maxLines="4"
         android:textColor="@color/alarm_ink"
         android:textSize="34sp"
         android:textStyle="bold" />
@@ -42,6 +48,7 @@
         android:layout_height="wrap_content"
         android:layout_marginTop="8dp"
         android:ellipsize="end"
+        android:fontFamily="@font/hanken_grotesk"
         android:gravity="center"
         android:maxLines="2"
         android:textColor="@color/alarm_muted"
@@ -50,13 +57,14 @@
     <Space
         android:layout_width="match_parent"
         android:layout_height="0dp"
-        android:layout_weight="2" />
+        android:layout_weight="1" />
 
     <TextView
         android:id="@+id/alarm_done"
         android:layout_width="match_parent"
         android:layout_height="64dp"
         android:background="@drawable/alarm_primary"
+        android:fontFamily="@font/hanken_grotesk"
         android:gravity="center"
         android:text="@string/alarm_done"
         android:textColor="@color/alarm_bg"
@@ -76,6 +84,7 @@
             android:layout_marginEnd="5dp"
             android:layout_weight="1"
             android:background="@drawable/alarm_secondary"
+            android:fontFamily="@font/hanken_grotesk"
             android:gravity="center"
             android:text="@string/alarm_ten"
             android:textColor="@color/alarm_ink"
@@ -89,6 +98,7 @@
             android:layout_marginStart="5dp"
             android:layout_weight="1"
             android:background="@drawable/alarm_secondary"
+            android:fontFamily="@font/hanken_grotesk"
             android:gravity="center"
             android:text="@string/alarm_hour"
             android:textColor="@color/alarm_ink"
@@ -101,6 +111,7 @@
         android:layout_width="match_parent"
         android:layout_height="52dp"
         android:layout_marginTop="6dp"
+        android:fontFamily="@font/hanken_grotesk"
         android:gravity="center"
         android:text="@string/alarm_stop"
         android:textColor="@color/alarm_muted"
