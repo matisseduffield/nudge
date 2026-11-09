@@ -9,6 +9,7 @@ import android.view.ContextThemeWrapper
 import android.view.LayoutInflater
 import android.view.View
 import android.view.WindowManager
+import androidx.annotation.MainThread
 import com.matisseduffield.nudge.R
 
 /**
@@ -25,7 +26,10 @@ object AlarmOverlay {
 
     private fun manager(context: Context) = context.applicationContext.getSystemService(WindowManager::class.java)
 
+    // All of this is on the main thread: it's views, and [view], [alarm] and [waiting] are only touched there.
+
     /** Puts the page up, and says whether it could. */
+    @MainThread
     fun show(context: Context, next: Alarm): Boolean {
         val app = context.applicationContext
         if (view != null) {

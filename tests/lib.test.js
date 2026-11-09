@@ -558,10 +558,29 @@ test('a morning summary says which task dates it counts', () => {
     ],
     prefs: { summary: '08:00' }, lists: [],
   };
-  const sum = L.schedule(state, NOW).find(x => x.id === 'summary|2026-11-07');
-  // On its day a repeating task counts for that day; overdue, for the day it was due.
-  assert.deepEqual(sum.items, [['late', '2026-11-04', 'Late'], ['daily', '2026-11-07', 'Daily'], ['weekly', '2026-11-02', 'Weekly']]);
+  const sums = L.schedule(state, NOW).filter(x => x.id.startsWith('summary|'));
+  const sum = sums.find(x => x.id === 'summary|2026-11-07');
+  // A repeating task stops counting once ticked up to its last date on or before the day.
+  // A one-off task is finished by any Done, so it carries no due date.
+  assert.deepEqual(sum.items, [['late', '2026-11-04', 'Late', ''], ['daily', '2026-11-07', 'Daily', '2026-11-06'], ['weekly', '2026-11-02', 'Weekly', '2026-11-02']]);
   assert.equal(sum.title, '3 tasks today');
+  assert.equal(sum.more, 0);
+  // Weekly on Mondays: from Monday the 9th, it's the 9th it has to be ticked up to.
+  assert.deepEqual(sums.find(x => x.id === 'summary|2026-11-12').items[2], ['weekly', '2026-11-09', 'Weekly', '2026-11-02']);
   assert.deepEqual(L.summaryText(['A']), { title: '1 task today', body: 'A' });
   assert.deepEqual(L.summaryText(['A', 'B', 'C', 'D']), { title: '4 tasks today', body: 'A, B, C' });
+});
+
+test('a morning summary lists only its first few tasks for the phone, and counts the rest', () => {
+  const tasks = Array.from({ length: 12 }, (_, i) => task({ id: `t${i}`, title: `T${i}`, due: '2026-11-01' }));
+  const sum = L.schedule({ tasks, prefs: { summary: '08:00' }, lists: [] }, NOW).find(x => x.id === 'summary|2026-11-07');
+  assert.equal(sum.items.length, 8);
+  assert.equal(sum.more, 4);
+  assert.equal(sum.title, '12 tasks today');
+  assert.equal(sum.body, 'T0, T1, T2');
+});
+
+test('moving overdue tasks to today drops their snoozes', () => {
+  const t = task({ due: '2026-11-02', snooze: +new Date(2026, 10, 6, 11, 0) });
+  assert.equal(L.moveOverdue([t], NOW)[0].snooze, null);
 });

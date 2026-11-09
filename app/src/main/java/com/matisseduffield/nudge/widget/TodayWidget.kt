@@ -6,6 +6,7 @@ import android.appwidget.AppWidgetProvider
 import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
+import android.util.AtomicFile
 import android.widget.RemoteViews
 import com.matisseduffield.nudge.MainActivity
 import com.matisseduffield.nudge.R
@@ -29,12 +30,27 @@ class TodayWidget : AppWidgetProvider() {
         private const val FILE = "widget.json"
         private const val WEEK = 7L   // as far ahead as the page sends
 
+        // Saves come from the page's save thread, taps and redraws from the main one. One
+        // lock, and a file swapped in whole, so neither sees half of the other's.
+        private val lock = Any()
+
         fun save(context: Context, json: JSONObject) {
-            val text = json.toString()
-            val file = File(context.filesDir, FILE)
-            if (file.exists() && runCatching { file.readText() }.getOrNull() == text) return
-            file.writeText(text)
-            refresh(context)
+            if (write(context, json.toString())) refresh(context)
+        }
+
+        // Whether it changed.
+        private fun write(context: Context, text: String): Boolean = synchronized(lock) {
+            val file = AtomicFile(File(context.filesDir, FILE))
+            if (runCatching { String(file.readFully()) }.getOrNull() == text) return false
+            val out = runCatching { file.startWrite() }.getOrNull() ?: return false
+            runCatching {
+                out.write(text.toByteArray())
+                file.finishWrite(out)
+                true
+            }.getOrElse {
+                file.failWrite(out)
+                false
+            }
         }
 
         /**
@@ -44,20 +60,22 @@ class TodayWidget : AppWidgetProvider() {
         fun taskDone(context: Context, task: String, occ: String) {
             // Before the first unlock its file can't be read. SystemReceiver catches up after.
             if (!Store.unlocked(context)) return
-            val json = read(context) ?: return
-            val items = json.optJSONArray("items") ?: return
-            val left = JSONArray()
-            for (i in 0 until items.length()) {
-                val item = items.optJSONObject(i) ?: continue
-                val gone = item.optString("id") == task && (!item.optBoolean("repeat") || item.optString("due") <= occ)
-                if (!gone) left.put(item)
+            val changed = synchronized(lock) {
+                val json = read(context) ?: return
+                val items = json.optJSONArray("items") ?: return
+                val left = JSONArray()
+                for (i in 0 until items.length()) {
+                    val item = items.optJSONObject(i) ?: continue
+                    val gone = item.optString("id") == task && (!item.optBoolean("repeat") || item.optString("due") <= occ)
+                    if (!gone) left.put(item)
+                }
+                write(context, json.put("items", left).toString())
             }
-            save(context, json.put("items", left))
+            if (changed) refresh(context)
         }
 
-        private fun read(context: Context): JSONObject? {
-            val file = File(context.filesDir, FILE)
-            return if (file.exists()) runCatching { JSONObject(file.readText()) }.getOrNull() else null
+        private fun read(context: Context): JSONObject? = synchronized(lock) {
+            runCatching { JSONObject(String(AtomicFile(File(context.filesDir, FILE)).readFully())) }.getOrNull()
         }
 
         private fun refresh(context: Context) {

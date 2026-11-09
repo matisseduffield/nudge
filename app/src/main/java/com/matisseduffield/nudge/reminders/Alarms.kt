@@ -13,6 +13,8 @@ import android.media.AudioAttributes
 import android.media.RingtoneManager
 import android.os.Build
 import android.os.Bundle
+import android.os.Handler
+import android.os.Looper
 import android.os.PowerManager
 import android.provider.Settings
 import androidx.core.app.NotificationCompat
@@ -176,7 +178,7 @@ object Alarms {
 
     fun done(context: Context, task: String, occ: String) {
         synchronized(lock) {
-            Store.writeAlarms(context, AlarmPlan.afterDone(Store.readAlarms(context), task, occ))
+            Store.writeAlarms(context, AlarmPlan.afterDone(Store.readAlarms(context), task, occ, LocalDate.now()))
             cancel(context, task)
             arm(context)
         }
@@ -284,12 +286,21 @@ object Alarms {
         val notification = builder.build().apply { flags = flags or android.app.Notification.FLAG_INSISTENT }
         val manager = context.getSystemService(NotificationManager::class.java)
         manager.notify(alarm.task, NOTIFICATION, notification)
-        // On a phone in use, Android would stop at a banner, so draw over the screen.
-        val locked = context.getSystemService(KeyguardManager::class.java).isKeyguardLocked ||
-            !context.getSystemService(PowerManager::class.java).isInteractive
-        if (!locked && Settings.canDrawOverlays(context) && !AlarmOverlay.show(context, alarm)) {
-            runCatching { context.startActivity(page) }
+        // On a phone in use, Android would stop at a banner, so draw over the screen. That's
+        // windows and views, so on the main thread: a save from the page arms alarms off it.
+        val app = context.applicationContext
+        onMain {
+            val locked = app.getSystemService(KeyguardManager::class.java).isKeyguardLocked ||
+                !app.getSystemService(PowerManager::class.java).isInteractive
+            if (!locked && Settings.canDrawOverlays(app) && !AlarmOverlay.show(app, alarm)) {
+                runCatching { app.startActivity(page) }
+            }
         }
+    }
+
+    private val main = Handler(Looper.getMainLooper())
+    private fun onMain(block: () -> Unit) {
+        if (Looper.myLooper() == Looper.getMainLooper()) block() else main.post(block)
     }
 
     private fun action(context: Context, name: String, alarm: Alarm, code: Int, minutes: Long = 0): PendingIntent {

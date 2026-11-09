@@ -17,7 +17,8 @@ import java.lang.ref.WeakReference
 class AlarmActivity : ComponentActivity() {
     companion object {
         const val RING_MS = 120_000L
-        private var showing: WeakReference<AlarmActivity>? = null
+        // Volatile, as close() can come from the thread that saves the page's tasks.
+        @Volatile private var showing: WeakReference<AlarmActivity>? = null
 
         /** The task's been dealt with somewhere else, so its page goes too. */
         fun close(task: String) {

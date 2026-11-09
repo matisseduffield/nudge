@@ -340,7 +340,22 @@
 
   // What a morning summary says. AlarmPlan.summaryText says it the same way, for when
   // the phone takes a task off the count.
-  const summaryText = names => ({ title: `${names.length} ${names.length === 1 ? 'task' : 'tasks'} today`, body: names.slice(0, 3).join(', ') });
+  const summaryText = (names, count = names.length) => ({ title: `${count} ${count === 1 ? 'task' : 'tasks'} today`, body: names.slice(0, 3).join(', ') });
+
+  // The tasks a summary lists for the phone, so Done on a notification can take them off
+  // its count before the page is next opened. Past these, only the number goes, or a
+  // long overdue list would weigh down every one of thirty summaries.
+  const SUMMARY_ITEMS = 8;
+  // Ticking off a repeating task catches it up to the date ticked, or to today if that's
+  // later (complete), so it stops counting for this summary's day once that reaches its
+  // last date on or before the day. Each item is [task, that date, title, due], where due
+  // is '' for a one-off task, which any Done finishes. AlarmPlan.afterDone reads these.
+  function summaryItem(t, day) {
+    if (!t.repeat) return [t.id, t.due, t.title, ''];
+    let last = t.due;
+    for (let d = t.due, guard = 0; d <= day && guard < 20000 && !(t.repeat.until && d > t.repeat.until); guard++) { last = d; d = nextDate(d, t.repeat); }
+    return [t.id, last, t.title, t.due];
+  }
 
   // The whole list the phone is given, soonest first. Two reminders can't share a
   // minute for one task, and a morning summary rides along for the next fortnight.
@@ -362,10 +377,8 @@
         const open = state.tasks.filter(t => isOpen(t) && t.due && (onDay(t, day) || t.due < day));
         lastSummary = local(when);
         if (!open.length) continue;
-        // Each with the date it's counted for, so Done on a notification can take it
-        // off the count before the page is next opened (AlarmPlan.afterDone).
-        const items = open.map(t => [t.id, onDay(t, day) ? day : t.due, t.title]);
-        out.push({ id: `summary|${day}`, task: '', occ: '', at: local(when), ...summaryText(items.map(i => i[2])), items, nag: 0, summary: true });
+        const items = open.slice(0, SUMMARY_ITEMS).map(t => summaryItem(t, day));
+        out.push({ id: `summary|${day}`, task: '', occ: '', at: local(when), ...summaryText(open.map(t => t.title), open.length), items, more: open.length - items.length, nag: 0, summary: true });
       }
     }
     out = out.sort((a, b) => (a.at < b.at ? -1 : 1)).slice(0, 800);
@@ -408,7 +421,7 @@
   const canMove = (t, now) => isOpen(t) && !t.repeat && t.due && t.due < iso(now);
   function moveOverdue(tasks, now) {
     const day = iso(now);
-    return tasks.map(t => (canMove(t, now) ? { ...t, due: day } : t));
+    return tasks.map(t => (canMove(t, now) ? edited(t, { due: day }) : t));   // a snooze goes with the old date
   }
 
   // Ticked off today. A repeating task moves on instead, so it isn't here.

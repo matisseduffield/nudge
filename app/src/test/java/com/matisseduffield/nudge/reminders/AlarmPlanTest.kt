@@ -4,6 +4,7 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import java.time.LocalDate
 import java.time.LocalDateTime
 import java.time.LocalTime
 import java.util.Locale
@@ -64,7 +65,7 @@ class AlarmPlanTest {
             alarm("c", "t", "2026-11-13", now.plusDays(7)),
             alarm("d", "other", "2026-11-06", now.plusHours(1)),
         )
-        assertEquals(listOf("c", "d"), AlarmPlan.afterDone(list, "t", "2026-11-06").map { it.id })
+        assertEquals(listOf("c", "d"), AlarmPlan.afterDone(list, "t", "2026-11-06", now.toLocalDate()).map { it.id })
     }
 
     @Test fun twoRemindersMakeOneChainOfNudges() {
@@ -167,36 +168,70 @@ class AlarmPlanTest {
         assertEquals("Mon 9 Nov, 3pm", AlarmPlan.alarmLine("Mon 9 Nov, 3pm", LocalTime.of(15, 0), false))
     }
 
-    private fun summary(day: String, vararg items: Counted) =
-        AlarmPlan.summaryText(items.map { it.title }).let { (title, body) ->
-            Alarm("summary|$day", "", "", now.plusDays(1), title, body, 0, summary = true, items = items.toList())
+    private val today = now.toLocalDate()
+    private fun summary(day: String, vararg items: Counted, more: Int = 0) =
+        AlarmPlan.summaryText(items.map { it.title }, items.size + more).let { (title, body) ->
+            Alarm("summary|$day", "", "", LocalDate.parse(day).atTime(8, 0), title, body, 0, summary = true, items = items.toList(), more = more)
         }
 
     @Test fun doneTakesATaskOffTheMorningSummary() {
         val sum = summary("2026-11-07", Counted("a", "2026-11-05", "Pay rent"), Counted("b", "2026-11-07", "Gym"), Counted("c", "2026-11-07", "Call mum"), Counted("d", "2026-11-07", "Bins"))
         assertEquals("4 tasks today", sum.title)
         assertEquals("Pay rent, Gym, Call mum", sum.body)
-        val after = AlarmPlan.afterDone(listOf(sum), "a", "2026-11-05").single()
+        // A one-off task is finished by Done, whichever notification it was on.
+        val after = AlarmPlan.afterDone(listOf(sum), "a", "2026-11-05", today).single()
         assertEquals("3 tasks today", after.title)
         assertEquals("Gym, Call mum, Bins", after.body)
         assertEquals(listOf("b", "c", "d"), after.items.map { it.task })
-        assertEquals("1 task today", AlarmPlan.afterDone(AlarmPlan.afterDone(listOf(after), "b", "2026-11-07"), "c", "2026-11-07").single().title)
+        assertEquals("1 task today", AlarmPlan.afterDone(AlarmPlan.afterDone(listOf(after), "b", "2026-11-07", today), "c", "2026-11-07", today).single().title)
     }
 
-    @Test fun anotherDateOfARepeatingTaskStaysCounted() {
-        // Ticking off today's date of a daily task leaves tomorrow's for tomorrow's summary.
-        val sum = summary("2026-11-07", Counted("daily", "2026-11-07", "Walk"))
-        assertEquals(listOf(sum), AlarmPlan.afterDone(listOf(sum), "daily", "2026-11-06"))
+    @Test fun aLaterDateOfARepeatingTaskStaysCounted() {
+        // Friday the 6th: ticking off today's walk leaves tomorrow's for tomorrow's summary.
+        val sum = summary("2026-11-07", Counted("daily", "2026-11-07", "Walk", due = "2026-11-06"))
+        assertEquals(listOf(sum), AlarmPlan.afterDone(listOf(sum), "daily", "2026-11-06", today))
+    }
+
+    @Test fun weeklyBinsTickedOnTheirDayLeaveTheWeeksSummaries() {
+        // Bins every Monday, due 2 Nov and never ticked. Done on Monday 9 Nov's reminder.
+        val days = (10..16).map { "2026-11-$it" }
+        val sums = days.map { day -> summary(day, Counted("bins", if (day < "2026-11-16") "2026-11-09" else "2026-11-16", "Bins", due = "2026-11-02"), Counted("x", day, "Other")) }
+        val after = AlarmPlan.afterDone(sums, "bins", "2026-11-09", LocalDate.of(2026, 11, 9))
+        assertEquals(days.map { if (it < "2026-11-16") listOf("x") else listOf("bins", "x") }, after.map { s -> s.items.map { it.task } })
+        assertEquals("1 task today", after.first().title)
+    }
+
+    @Test fun anOverdueRepeatingTaskTickedTodayLeavesTodaysSummary() {
+        // Daily since 7 Nov, ticked on the 7th's notification at 7:30 on the 9th: the page
+        // catches it up past today, so the 8:00 summary that day no longer counts it.
+        val nine = summary("2026-11-09", Counted("walk", "2026-11-09", "Walk", due = "2026-11-07"))
+        val ten = summary("2026-11-10", Counted("walk", "2026-11-10", "Walk", due = "2026-11-07"))
+        val after = AlarmPlan.afterDone(listOf(nine, ten), "walk", "2026-11-07", LocalDate.of(2026, 11, 9))
+        assertEquals(listOf("summary|2026-11-10"), after.map { it.id })
+    }
+
+    @Test fun anOldNotificationDoesNotTakeOffANewerDate() {
+        // The page ignores Done on a date from before the task's date then.
+        val sum = summary("2026-11-10", Counted("walk", "2026-11-10", "Walk", due = "2026-11-09"))
+        assertEquals(listOf(sum), AlarmPlan.afterDone(listOf(sum), "walk", "2026-11-08", LocalDate.of(2026, 11, 10)))
     }
 
     @Test fun aSummaryWithNothingLeftGoes() {
         val sum = summary("2026-11-07", Counted("a", "2026-11-07", "Gym"))
         val other = summary("2026-11-08", Counted("a", "2026-11-07", "Gym"), Counted("b", "2026-11-08", "Bins"))
         val keepGoing = alarm("keep-going", "", "", now.plusDays(14), summary = true)
-        val left = AlarmPlan.afterDone(listOf(sum, other, keepGoing), "a", "2026-11-07")
+        val left = AlarmPlan.afterDone(listOf(sum, other, keepGoing), "a", "2026-11-07", today)
         assertEquals(listOf("summary|2026-11-08", "keep-going"), left.map { it.id })
         assertEquals("1 task today", left.first().title)
         assertEquals("Bins", left.first().body)
+    }
+
+    @Test fun tasksPastTheListStillCount() {
+        val sum = summary("2026-11-07", Counted("a", "2026-11-07", "Gym"), more = 4)
+        assertEquals("5 tasks today", sum.title)
+        val after = AlarmPlan.afterDone(listOf(sum), "a", "2026-11-07", today).single()
+        assertEquals("4 tasks today", after.title)
+        assertEquals("", after.body)
     }
 
     @Test fun theBackstopGoesOffWithTheSoonestAlarm() {

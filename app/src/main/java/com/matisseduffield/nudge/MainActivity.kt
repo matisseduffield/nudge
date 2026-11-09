@@ -289,15 +289,17 @@ class MainActivity : ComponentActivity() {
         when (msg.optString("type")) {
             "hello" -> {
                 // Read after any save still being written. The page is only known once that's
-                // sent, so no taps or tasks to open reach it before its tasks do.
+                // sent, so no taps or tasks to open reach it before its tasks do. Taps are
+                // taken from their queue only here, with the page there to hand them to.
                 val app = applicationContext
                 disk.execute {
-                    val state = JSONObject().put("type", "state").put("state", Store.readState(app)).put("actions", Store.takeActions(app))
+                    val state = JSONObject().put("type", "state").put("state", Store.readState(app))
                     runOnUiThread {
                         if (isDestroyed) return@runOnUiThread
                         page = reply
                         send(JSONObject().put("type", "info").put("version", BuildConfig.VERSION_NAME).put("updates", BuildConfig.SELF_UPDATER).put("askExact", BuildConfig.ASK_EXACT_ALARM))
                         send(state)
+                        sendActions()
                         sendHealth()
                         sendPendingOpen()
                         updates.onPageReady()

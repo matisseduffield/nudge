@@ -19,12 +19,17 @@ data class Alarm(
     val loud: Boolean = false,
     /** The page's 24-hour setting, for the alarm page's clock. Null from versions before it was sent. */
     val use24: Boolean? = null,
-    /** What a morning summary counts. Empty for anything else, and for summaries from versions before it was sent. */
+    /** The tasks a morning summary lists. Empty for anything else, and for summaries from versions before it was sent. */
     val items: List<Counted> = emptyList(),
+    /** How many more a morning summary counts than it lists. */
+    val more: Int = 0,
 )
 
-/** A task date a morning summary counts, and the title it shows. */
-data class Counted(val task: String, val occ: String, val title: String)
+/**
+ * A task a morning summary counts. A repeating one ([due] its date when the summary was
+ * planned) stops counting once ticked up to [date]; a one-off one ([due] empty) on any Done.
+ */
+data class Counted(val task: String, val date: String, val title: String, val due: String = "")
 
 /** What happens to the list of alarms, kept free of Android so it can be tested on its own. */
 object AlarmPlan {
@@ -102,21 +107,34 @@ object AlarmPlan {
 
     /**
      * Done clears this occurrence and any nudging. A repeating task's later dates stay set.
-     * Morning summaries stop counting it, and one with nothing left to count goes.
+     * Morning summaries stop counting it as the page will once it hears ([finishes]), and
+     * one with nothing left to count goes.
      */
-    fun afterDone(list: List<Alarm>, task: String, occ: String) =
+    fun afterDone(list: List<Alarm>, task: String, occ: String, today: LocalDate) =
         list.filter { it.task != task || (it.occ != occ && !isNag(it)) }.mapNotNull { alarm ->
-            val left = alarm.items.filterNot { it.task == task && it.occ == occ }
+            val left = alarm.items.filterNot { it.task == task && finishes(it, occ, today) }
             when {
                 left.size == alarm.items.size -> alarm
-                left.isEmpty() -> null
-                else -> summaryText(left.map { it.title }).let { (title, body) -> alarm.copy(title = title, body = body, items = left) }
+                left.isEmpty() && alarm.more == 0 -> null
+                else -> summaryText(left.map { it.title }, left.size + alarm.more).let { (title, body) -> alarm.copy(title = title, body = body, items = left) }
             }
         }
 
+    /**
+     * Whether Done on [occ] stops [item] counting, as the page's complete() works it out.
+     * A one-off task is finished. A repeating one is caught up to [occ], or to today if
+     * that's later, unless [occ] is from before its date then (an old notification, which
+     * the page ignores).
+     */
+    fun finishes(item: Counted, occ: String, today: LocalDate): Boolean {
+        if (item.due.isEmpty()) return true
+        if (occ < item.due) return false
+        return maxOf(occ, today.toString()) >= item.date
+    }
+
     /** A morning summary's title and line, worded as the page's summaryText words them. */
-    fun summaryText(names: List<String>): Pair<String, String> =
-        "${names.size} ${if (names.size == 1) "task" else "tasks"} today" to names.take(3).joinToString(", ")
+    fun summaryText(names: List<String>, count: Int = names.size): Pair<String, String> =
+        "$count ${if (count == 1) "task" else "tasks"} today" to names.take(3).joinToString(", ")
 
     /**
      * When the inexact backstop goes off: with the soonest alarm. If exact alarms are taken
