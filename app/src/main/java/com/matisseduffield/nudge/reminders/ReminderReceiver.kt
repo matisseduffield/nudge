@@ -39,7 +39,7 @@ class SystemReceiver : BroadcastReceiver() {
                 val locked = Store.moveLockedActions(context)
                 for (i in 0 until locked.length()) {
                     val action = locked.optJSONObject(i) ?: continue
-                    if (action.optString("type") == "done") TodayWidget.taskDone(context, action.optString("task"))
+                    if (action.optString("type") == "done") TodayWidget.taskDone(context, action.optString("task"), action.optString("occ"))
                 }
                 Alarms.arm(context, reset = true)
             }

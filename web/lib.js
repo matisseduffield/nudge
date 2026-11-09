@@ -72,7 +72,8 @@
   // ---- quick add ----
   // One line in, a task out. Each rule takes its words out of the line, and what's
   // left is the title.
-  function parseQuick(text, now, lists = []) {
+  // options.use24: with the 24-hour clock on, "at 5:30" is 05:30 as written.
+  function parseQuick(text, now, lists = [], options = {}) {
     const today = iso(now);
     let t = ` ${text.trim()} `;
     const out = { title: '', due: null, time: null, pri: 0, repeat: null, list: null, listName: null, remind: null, loud: false };
@@ -135,7 +136,8 @@
     };
     const DATE_NEXT = `(?=\\s*$|\\s+(?:today|tomorrow|tmrw|tmr|on\\s|next\\s|in\\s+\\d|${LONG_DAY}|${SHORT_DAY}))`;
     // Hours 1 to 7 with no am, pm or part of the day mean the afternoon: nobody means 3:30am.
-    const guess = (h, m) => { const n = Number(h); return clock(!part && n >= 1 && n <= 7 ? n + 12 : n, m); };
+    // Someone on the 24-hour clock writes what they mean.
+    const guess = (h, m) => { const n = Number(h); return clock(!part && !options.use24 && n >= 1 && n <= 7 ? n + 12 : n, m); };
     // "In 20 min", "in 2 hours": that clock time, today or past midnight.
     take(/\sin\s+(\d{1,3})\s*(mins?|minutes?|hrs?|hours?)\b/i, m => {
       const at = new Date(+now + Number(m[1]) * (m[2][0].toLowerCase() === 'h' ? 60 : 1) * 60000);
@@ -187,8 +189,9 @@
       || take(new RegExp(`\\s(\\d{1,2})(?:st|nd|rd|th)?\\s+(${MONTH})${END}`, 'i'), m => dayOfYear(Number(m[1]), monthOf(m[2].toLowerCase())))
       || take(new RegExp(`\\son\\s+(${MONTH})\\s+(\\d{1,2})(?:st|nd|rd|th)?\\b`, 'i'), m => dayOfYear(Number(m[2]), monthOf(m[1].toLowerCase())))
       || take(new RegExp(`\\s(${MONTH})\\s+(\\d{1,2})(?:st|nd|rd|th)?${END}`, 'i'), m => dayOfYear(Number(m[2]), monthOf(m[1].toLowerCase())))
-      // "On the 1st": the next date with that day of the month.
-      || take(/\son\s+the\s+(\d{1,2})(?:st|nd|rd|th)\b/i, m => {
+      // "On the 1st": the next date with that day of the month. Not "on the 2nd floor" or
+      // "on the 4th of July".
+      || take(/\son\s+the\s+(\d{1,2})(?:st|nd|rd|th)\b(?!\s+(?:floor|of)\b)/i, m => {
         const d = Number(m[1]);
         for (let k = 0; d >= 1 && d <= 31 && k < 13; k++) {
           const when = new Date(now.getFullYear(), now.getMonth() + k, d);
@@ -228,10 +231,11 @@
     }, now);
   }
 
-  // An urgent task has to have something left to ring, even if its time has gone by.
-  function ensureRing(task, now) {
+  // An urgent task has to have something left to ring, even if its time has gone by:
+  // an hour away for a new task, sooner when switched on for one already due.
+  function ensureRing(task, now, leadMinutes = 60) {
     if (!task.loud || firings(task, now).length) return task;
-    return { ...task, reminders: [...task.reminders, { at: local(new Date(+now + 36e5)) }] };
+    return { ...task, reminders: [...task.reminders, { at: local(new Date(+now + leadMinutes * 6e4)) }] };
   }
 
   const isOpen = t => !t.done && !t.deleted;
@@ -289,7 +293,7 @@
   }
 
   // A task that rings like a call keeps coming back until it's dealt with.
-  const LOUD_NAG = 5;
+  const LOUD_NAG = 5;   // minutes
   const nagOf = task => task.nag || (task.loud ? LOUD_NAG : 0);
 
   // When a reminder rings. Days and weeks before keep the clock time, even across a
@@ -404,11 +408,19 @@
   const byDue = (a, b) => (a.due || '9999').localeCompare(b.due || '9999') || (a.time || '99').localeCompare(b.time || '99') || b.pri - a.pri || a.created - b.created;
 
   // What the home screen widget is given: open tasks up to a week ahead, each with its
-  // date, so it can move on to a new day by itself before the app is next opened.
+  // date, so it can move on to a new day by itself before the app is next opened. A
+  // repeating task comes with each of its dates that week, so ticking one off on a
+  // notification leaves the next. The widget shows a task once, by its earliest date.
   const WIDGET_DAYS = 7;
   function widgetItems(tasks, now) {
-    const until = addDays(iso(now), WIDGET_DAYS);
-    return tasks.filter(t => isOpen(t) && t.due && t.due <= until).sort(byDue).map(t => ({ id: t.id, title: t.title, due: t.due }));
+    const day = iso(now), until = addDays(day, WIDGET_DAYS);
+    const out = [];
+    for (const t of tasks.filter(x => isOpen(x) && x.due && x.due <= until).sort(byDue)) {
+      if (!t.repeat) { out.push({ id: t.id, title: t.title, due: t.due }); continue; }
+      const dates = [t.due, ...occurrences(t, WIDGET_DAYS + 1, day).filter(d => d > t.due && d <= until)];
+      for (const due of dates) out.push({ id: t.id, title: t.title, due, repeat: true });
+    }
+    return out.sort((a, b) => a.due.localeCompare(b.due));
   }
 
   function today(tasks, now) {
@@ -491,7 +503,7 @@
     return { lists, tasks, prefs: { summary: null, defaultReminder: 0, use24: false, ...(s.prefs || {}) } };
   }
 
-  const lib = { reminderWarning, shouldAskExact, exactBlocker, loudBlocker, iso, parseDay, addDays, daysBetween, atTime, local, nextDate, repeatText, parseQuick, makeTask, newId, isOpen, complete, occurrences, firings, schedule, applyActions, today, upcoming, search, dayText, timeText, reminderText, cleanState, ensureRing, fitToDays, nagOf, widgetItems, canMove, moveOverdue, doneToday, listOrder, tidy };
+  const lib = { reminderWarning, shouldAskExact, exactBlocker, loudBlocker, iso, parseDay, addDays, daysBetween, atTime, local, nextDate, repeatText, parseQuick, makeTask, newId, isOpen, complete, occurrences, firings, schedule, applyActions, today, upcoming, search, dayText, timeText, reminderText, cleanState, ensureRing, fitToDays, nagOf, LOUD_NAG, widgetItems, canMove, moveOverdue, doneToday, listOrder, tidy };
   if (typeof module === 'object' && module.exports) module.exports = lib;
   else root.NudgeLib = lib;
 })(this);

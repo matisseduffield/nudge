@@ -37,8 +37,11 @@ class TodayWidget : AppWidgetProvider() {
             refresh(context)
         }
 
-        /** Takes a task ticked off on a notification out of the list. */
-        fun taskDone(context: Context, task: String) {
+        /**
+         * Takes a task ticked off on a notification out of the list. A repeating one keeps
+         * its later dates: ticking off [occ] catches up everything up to it.
+         */
+        fun taskDone(context: Context, task: String, occ: String) {
             // Before the first unlock its file can't be read. SystemReceiver catches up after.
             if (!Store.unlocked(context)) return
             val json = read(context) ?: return
@@ -46,7 +49,8 @@ class TodayWidget : AppWidgetProvider() {
             val left = JSONArray()
             for (i in 0 until items.length()) {
                 val item = items.optJSONObject(i) ?: continue
-                if (item.optString("id") != task) left.put(item)
+                val gone = item.optString("id") == task && (!item.optBoolean("repeat") || item.optString("due") <= occ)
+                if (!gone) left.put(item)
             }
             save(context, json.put("items", left))
         }
@@ -69,10 +73,14 @@ class TodayWidget : AppWidgetProvider() {
             // Past the week the page sent, only the app can work out what's due.
             val fresh = sent != null && !today.isAfter(sent.plusDays(WEEK))
             val all = json?.optJSONArray("items") ?: JSONArray()
-            // Older versions sent no dates, only what was due on the day they sent.
+            // Older versions sent no dates, only what was due on the day they sent. A
+            // repeating task comes once for each date, and shows once, by its earliest.
             val items = (0 until all.length()).mapNotNull { all.optJSONObject(it) }
-                .map { it.optString("title") to (runCatching { LocalDate.parse(it.optString("due")) }.getOrNull() ?: sent ?: today) }
-                .filter { (_, due) -> !due.isAfter(today) }
+                .map { Triple(it.optString("id"), it.optString("title"), runCatching { LocalDate.parse(it.optString("due")) }.getOrNull() ?: sent ?: today) }
+                .filter { !it.third.isAfter(today) }
+                .sortedBy { it.third }
+                .distinctBy { it.first.ifEmpty { it.second } }
+                .map { it.second to it.third }
             val late = items.count { (_, due) -> due.isBefore(today) }
             val due = items.size - late
             val text = if (fresh) items.take(6).joinToString("\n") { it.first } else ""

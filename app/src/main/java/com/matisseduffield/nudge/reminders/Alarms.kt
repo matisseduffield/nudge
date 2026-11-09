@@ -162,7 +162,7 @@ object Alarms {
             cancel(context, task)
             arm(context)
         }
-        TodayWidget.taskDone(context, task)
+        TodayWidget.taskDone(context, task, occ)
         Store.addAction(context, JSONObject().put("type", "done").put("task", task).put("occ", occ).put("when", System.currentTimeMillis()))
     }
 
@@ -184,7 +184,7 @@ object Alarms {
             cancel(context, task)
             arm(context)
         }
-        Store.addAction(context, JSONObject().put("type", "snooze").put("task", task).put("occ", occ).put("until", millis(until)))
+        Store.addAction(context, JSONObject().put("type", "snooze").put("task", task).put("occ", occ).put("until", millis(until)).put("when", System.currentTimeMillis()))
     }
 
     /** Dealt with on the full-screen page: stops the ringing and any nudging, and the task stays open. */

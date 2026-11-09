@@ -470,3 +470,35 @@ test('an urgent task nudges every 5 minutes unless it says otherwise', () => {
   assert.equal(L.nagOf(task({})), 0);
   assert.equal(L.nagOf(task({ nag: 30 })), 30);
 });
+
+test('a repeating task gives the widget each of its dates that week', () => {
+  const daily = task({ id: 'd', title: 'Pills', due: '2026-11-05', repeat: { every: 1, unit: 'day' } });
+  const weekly = task({ id: 'w', title: 'Bins', due: '2026-11-10', repeat: { every: 1, unit: 'week' } });
+  const items = L.widgetItems([daily, weekly], NOW);
+  // Overdue since yesterday, then every day from today to a week out.
+  assert.deepEqual(items.filter(x => x.id === 'd').map(x => x.due),
+    ['2026-11-05', '2026-11-06', '2026-11-07', '2026-11-08', '2026-11-09', '2026-11-10', '2026-11-11', '2026-11-12', '2026-11-13']);
+  assert.deepEqual(items.filter(x => x.id === 'w').map(x => x.due), ['2026-11-10']);
+  assert.ok(items.every(x => x.repeat === true));
+  assert.deepEqual(items.map(x => x.due), [...items.map(x => x.due)].sort());
+});
+
+test('switching on ring like a call after its time rings in 5 minutes, a new task in an hour', () => {
+  const late = task({ due: '2026-11-06', time: '09:00', loud: true, reminders: [{ before: 0 }] });
+  assert.deepEqual(L.ensureRing(late, NOW, L.LOUD_NAG).reminders.at(-1), { at: '2026-11-06T10:05' });
+  assert.deepEqual(L.ensureRing(late, NOW).reminders.at(-1), { at: '2026-11-06T11:00' });
+});
+
+test('on the 24-hour clock, "at 5:30" means 05:30', () => {
+  const at = (text, use24) => L.parseQuick(text, new Date(2026, 10, 9, 14, 20), [], { use24 });
+  assert.equal(at('Run at 5:30').time, '17:30');
+  assert.equal(at('Run at 5:30', true).time, '05:30');
+  assert.equal(at('Run at 5:30', true).due, '2026-11-10');   // that clock time next comes round tomorrow
+  assert.equal(at('Run at 5', true).time, '17:00');           // a bare hour still means the afternoon
+});
+
+test('"on the 2nd floor" and "on the 4th of July" are not dates', () => {
+  assert.deepEqual([q('Meet on the 2nd floor').title, q('Meet on the 2nd floor').due], ['Meet on the 2nd floor', null]);
+  assert.deepEqual([q('Party on the 4th of July').title, q('Party on the 4th of July').due], ['Party on the 4th of July', null]);
+  assert.equal(q('Pay on the 2nd').due, '2026-12-02');
+});

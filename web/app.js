@@ -250,7 +250,7 @@
     return bits.join(' · ');
   }
   function addFrom(text, list) {
-    const q = L.parseQuick(text, now(), state.lists);
+    const q = L.parseQuick(text, now(), state.lists, { use24: state.prefs.use24 });
     if (!q.title) return null;
     if (q.listName && !q.list) {
       const made = { id: L.newId(now()), name: q.listName[0].toUpperCase() + q.listName.slice(1), colour: COLOURS[state.lists.length % COLOURS.length] };
@@ -263,7 +263,7 @@
     return t;
   }
   $('quickBox').addEventListener('input', () => {
-    const text = previewText(L.parseQuick($('quickBox').value, now(), state.lists));
+    const text = previewText(L.parseQuick($('quickBox').value, now(), state.lists, { use24: state.prefs.use24 }));
     $('preview').hidden = !text;
     $('preview').textContent = text;
   });
@@ -487,10 +487,12 @@
     $('fUntilWrap').hidden = !t.repeat;
     $('fUntil').value = t.repeat?.until || '';
     $('fUntil').min = t.due || '';
-    $('fLoud').checked = !!t.loud && t.reminders.length > 0;
+    // With no reminder there's nothing to ring like a call, so both read as off.
+    const loud = !!t.loud && t.reminders.length > 0;
+    $('fLoud').checked = loud;
     // Ringing like a call nudges by itself, so this shows what it will really do.
-    $('fNag').value = String(L.nagOf(t));
-    $('fNag').disabled = !!t.loud;
+    $('fNag').value = String(L.nagOf({ ...t, loud }));
+    $('fNag').disabled = loud;
     renderLoudFix();
     $('fUntil').value = t.repeat?.until || '';
     const days = t.repeat?.unit === 'days' ? t.repeat.days || [] : null;
@@ -630,7 +632,8 @@
       change.reminders = [{ before: 0 }];
       if (!t.due) { change.due = L.iso(now()); $('fDue').value = change.due; }
     }
-    if (change.loud) change.reminders = L.ensureRing({ ...t, ...change }, now()).reminders;
+    // If its time has gone by, it rings in 5 minutes, as its nudging would.
+    if (change.loud) change.reminders = L.ensureRing({ ...t, ...change }, now(), L.LOUD_NAG).reminders;
     edit(change);
   });
   $('fPri').addEventListener('change', () => edit({ pri: Number($('fPri').value) }));
