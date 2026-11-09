@@ -169,6 +169,14 @@ test('the phone gets one sorted list, with the morning summary', () => {
   assert.deepEqual([...s.map(x => x.at)].sort(), s.map(x => x.at));
 });
 
+test('each alarm carries the 24-hour setting, for the clock on the alarm page', () => {
+  const tasks = [task({ due: '2026-11-07', time: '15:00', reminders: [{ before: 0 }] }), task({ due: '2026-11-07', reminders: [{ before: 0 }] })];
+  const at = use24 => L.schedule({ tasks, prefs: { use24 }, lists: [] }, NOW).filter(x => !x.summary);
+  assert.deepEqual(at(true).map(x => x.use24), [true, true]);   // untimed too: its text has no time to go by
+  assert.deepEqual(at(false).map(x => x.use24), [false, false]);
+  assert.equal(at(true).find(x => x.body.includes(':')).body, 'Today, 15:00');   // written for when it rings
+});
+
 test('what was tapped on a notification lands on the task', () => {
   const a = task({ id: 'a', due: '2026-11-06' });
   const b = task({ id: 'b', due: '2026-11-06', repeat: { every: 1, unit: 'week' } });

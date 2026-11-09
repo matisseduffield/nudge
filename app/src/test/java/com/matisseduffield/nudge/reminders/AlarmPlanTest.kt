@@ -6,6 +6,7 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.time.LocalDateTime
 import java.time.LocalTime
+import java.util.Locale
 
 class AlarmPlanTest {
     private val now = LocalDateTime.of(2026, 11, 6, 10, 0)
@@ -164,5 +165,17 @@ class AlarmPlanTest {
         assertEquals("Today, 3pm", AlarmPlan.alarmLine("Today, 3pm", LocalTime.of(14, 30), false))
         assertEquals("Tomorrow, 9am", AlarmPlan.alarmLine("Tomorrow, 9am", LocalTime.of(9, 0), false))
         assertEquals("Mon 9 Nov, 3pm", AlarmPlan.alarmLine("Mon 9 Nov, 3pm", LocalTime.of(15, 0), false))
+    }
+
+    @Test fun theClockUsesPlainDigitsInAnyLanguage() {
+        val was = Locale.getDefault()
+        try {
+            Locale.setDefault(Locale.forLanguageTag("ar-EG"))
+            assertEquals("09:05", AlarmPlan.clock(LocalTime.of(9, 5), true))
+            assertEquals("9:05am", AlarmPlan.clock(LocalTime.of(9, 5), false))
+            assertEquals("", AlarmPlan.alarmLine("Today, 9:05am", LocalTime.of(9, 5), false))
+        } finally {
+            Locale.setDefault(was)
+        }
     }
 }

@@ -1,0 +1,4 @@
+<resources>
+    <!-- The alarm title's smallest size. -->
+    <dimen name="alarm_title_min">22sp</dimen>
+</resources>

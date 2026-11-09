@@ -310,7 +310,7 @@
     const out = [];
     const body = (when, day) => (day ? [dayText(day, when), timeText(task.time, use24)].filter(Boolean).join(', ') : '');
     const add = (when, occ) => {
-      if (when > now) out.push({ id: `${task.id}|${local(when)}`, task: task.id, occ, at: local(when), title: task.title, body: body(when, occ), nag: nagOf(task), loud: !!task.loud });
+      if (when > now) out.push({ id: `${task.id}|${local(when)}`, task: task.id, occ, at: local(when), title: task.title, body: body(when, occ), nag: nagOf(task), loud: !!task.loud, use24 });
     };
     for (const occ of occurrences(task, limit, iso(now))) {
       for (const r of task.reminders) if (r.before != null) add(ringTime(occ, task.time, r.before), occ);

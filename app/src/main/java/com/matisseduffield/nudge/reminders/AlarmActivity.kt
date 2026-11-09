@@ -33,6 +33,7 @@ class AlarmActivity : ComponentActivity() {
     private var title = ""
     private var body = ""
     private var nag = 0
+    private var use24: Boolean? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -62,7 +63,8 @@ class AlarmActivity : ComponentActivity() {
         title = from.getStringExtra("title").orEmpty()
         body = from.getStringExtra("body").orEmpty()
         nag = from.getIntExtra("nag", 0)
-        AlarmFace.bind(findViewById(android.R.id.content), title, body)
+        use24 = Alarms.use24Of(from)
+        AlarmFace.bind(findViewById(android.R.id.content), title, body, use24)
         // Left alone, the page goes when the ringing does, and nudging brings it back.
         val left = from.getLongExtra("until", 0) - System.currentTimeMillis()
         timeout.removeCallbacksAndMessages(null)
@@ -84,11 +86,18 @@ class AlarmActivity : ComponentActivity() {
     }
 
     private fun snooze(minutes: Long) {
-        Alarms.snooze(this, task, occ, title, body, minutes, true, nag)
+        Alarms.snooze(this, task, occ, title, body, minutes, true, nag, use24)
+    }
+
+    // Shown again as the screen wakes: the clock catches up straight away.
+    override fun onResume() {
+        super.onResume()
+        AlarmFace.refresh(findViewById(android.R.id.content))
     }
 
     override fun onDestroy() {
         timeout.removeCallbacksAndMessages(null)
+        AlarmFace.stop(findViewById(android.R.id.content))
         if (showing?.get() === this) showing = null
         super.onDestroy()
     }

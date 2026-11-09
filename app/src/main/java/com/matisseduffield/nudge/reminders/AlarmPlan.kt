@@ -17,6 +17,8 @@ data class Alarm(
     val nag: Int,
     val summary: Boolean = false,
     val loud: Boolean = false,
+    /** The page's 24-hour setting, for the alarm page's clock. Null from versions before it was sent. */
+    val use24: Boolean? = null,
 )
 
 /** What happens to the list of alarms, kept free of Android so it can be tested on its own. */
@@ -52,8 +54,11 @@ object AlarmPlan {
 
     /** The alarm page's clock: 3:00pm, or 15:00. */
     fun clock(time: LocalTime, use24: Boolean): String =
-        if (use24) "%02d:%02d".format(time.hour, time.minute)
-        else "${(time.hour + 11) % 12 + 1}:${"%02d".format(time.minute)}${if (time.hour < 12) "am" else "pm"}"
+        if (use24) two(time.hour) + ":" + two(time.minute)
+        else "${(time.hour + 11) % 12 + 1}:${two(time.minute)}${if (time.hour < 12) "am" else "pm"}"
+
+    // Plain 0 to 9, whatever digits the phone's language uses, like the page's own text.
+    private fun two(n: Int) = String.format(Locale.ROOT, "%02d", n)
 
     /** Whether the page wrote [body] in 24-hour time, following its setting. Null when there's no time in it to tell by. */
     fun uses24(body: String): Boolean? = when {
@@ -65,7 +70,7 @@ object AlarmPlan {
     // A time the way the page writes one: 3pm, 3:30pm or 15:00.
     private fun pageTime(time: LocalTime, use24: Boolean): String =
         if (use24) clock(time, true)
-        else "${(time.hour + 11) % 12 + 1}${if (time.minute > 0) ":%02d".format(time.minute) else ""}${if (time.hour < 12) "am" else "pm"}"
+        else "${(time.hour + 11) % 12 + 1}${if (time.minute > 0) ":" + two(time.minute) else ""}${if (time.hour < 12) "am" else "pm"}"
 
     /**
      * The line under the title, or nothing. "Today" at the time on the clock says nothing

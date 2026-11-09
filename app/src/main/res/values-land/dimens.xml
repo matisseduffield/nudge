@@ -1,0 +1,4 @@
+<resources>
+    <!-- Landscape leaves the title less height, so it may go smaller. -->
+    <dimen name="alarm_title_min">16sp</dimen>
+</resources>

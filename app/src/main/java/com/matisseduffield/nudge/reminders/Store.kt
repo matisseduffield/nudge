@@ -77,12 +77,14 @@ object Store {
             nag = json.optInt("nag"),
             summary = json.optBoolean("summary"),
             loud = json.optBoolean("loud"),
+            use24 = if (json.has("use24")) json.optBoolean("use24") else null,
         )
     }.getOrNull()
 
     private fun toJson(alarm: Alarm) = JSONObject()
         .put("id", alarm.id).put("task", alarm.task).put("occ", alarm.occ).put("at", alarm.at.toString())
         .put("title", alarm.title).put("body", alarm.body).put("nag", alarm.nag).put("summary", alarm.summary).put("loud", alarm.loud)
+        .apply { alarm.use24?.let { put("use24", it) } }
 
     private fun parseAll(text: String?): List<Alarm> {
         val array = text?.let { runCatching { JSONArray(it) }.getOrNull() } ?: return emptyList()

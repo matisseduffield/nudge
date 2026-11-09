@@ -55,7 +55,7 @@ object AlarmOverlay {
     private fun bind(context: Context, next: Alarm) {
         val root = view ?: return
         alarm = next
-        AlarmFace.bind(root, next.title, next.body)
+        AlarmFace.bind(root, next.title, next.body, next.use24)
         root.findViewById<View>(R.id.alarm_done).setOnClickListener { Alarms.done(context, next.task, next.occ) }
         root.findViewById<View>(R.id.alarm_ten).setOnClickListener { snooze(context, next, 10) }
         root.findViewById<View>(R.id.alarm_hour).setOnClickListener { snooze(context, next, 60) }
@@ -66,7 +66,7 @@ object AlarmOverlay {
     }
 
     private fun snooze(context: Context, rung: Alarm, minutes: Long) =
-        Alarms.snooze(context, rung.task, rung.occ, rung.title, rung.body, minutes, true, rung.nag)
+        Alarms.snooze(context, rung.task, rung.occ, rung.title, rung.body, minutes, true, rung.nag, rung.use24)
 
     /** The task's been dealt with, here or anywhere else. */
     fun close(context: Context, task: String) {

@@ -126,21 +126,27 @@
   const taskList = (tasks, showList, sortable, headed) => { const box = el('div', 'tasks'); box.append(...tasks.map(t => row(t, showList, sortable, headed))); return box; };
   // A section heading. A count only where the rows themselves are hidden.
   function head(text, actions = [], cls = '') {
-    const h = el('p', `head ${cls}`);
-    h.append(el('span', '', text));
+    const h = el('div', `head ${cls}`);
+    const name = el('span', '', text);
+    name.setAttribute('role', 'heading');
+    name.setAttribute('aria-level', '2');
+    h.append(name);
     const acts = actions.filter(Boolean);
     if (acts.length) { const box = el('span', 'acts'); box.append(...acts); h.append(box); }
     return h;
   }
-  function action(text, key) {
+  // A heading's button. Its label says what it acts on, as "Hide" alone doesn't.
+  function action(text, key, label, expanded) {
     const b = el('button', '', text);
     b.type = 'button';
     b.dataset[key] = '1';
+    b.setAttribute('aria-label', label);
+    if (expanded != null) b.setAttribute('aria-expanded', String(expanded));
     return b;
   }
   // Done today and Completed: shown, or folded away behind their count.
-  const folded = (name, count, open, key, extra = []) =>
-    head(open ? name : `${name} (${count})`, [...(open ? extra : []), action(open ? 'Hide' : 'Show', key)]);
+  const folded = (name, count, open, key, what, extra = []) =>
+    head(open ? name : `${name} (${count})`, [...(open ? extra : []), action(open ? 'Hide' : 'Show', key, `${open ? 'Hide' : 'Show'} ${what}`, open)]);
 
   // ---- the three tabs ----
   let showDoneToday = false;
@@ -149,7 +155,7 @@
     const out = [];
     if (overdue.length) {
       const movable = overdue.some(t => L.canMove(t, now()));
-      out.push(head('Overdue', [movable && action('Move to today', 'moveOverdue')], 'late'), taskList(overdue));
+      out.push(head('Overdue', [movable && action('Move to today', 'moveOverdue', 'Move overdue tasks to today')], 'late'), taskList(overdue));
     }
     const day = L.iso(now());
     // Without Overdue above it, the tab already says Today.
@@ -157,7 +163,7 @@
     const done = L.doneToday(state.tasks, now());
     if (!out.length) out.push(el('p', 'empty', state.tasks.length ? 'Nothing due today.' : 'Type a task below. Try: Call mum tomorrow 5pm #home'));
     if (done.length) {
-      out.push(folded('Done today', done.length, showDoneToday, 'doneToday'));
+      out.push(folded('Done today', done.length, showDoneToday, 'doneToday', 'tasks done today'));
       if (showDoneToday) out.push(taskList(done, true, false, day));
     }
     return out;
@@ -196,10 +202,20 @@
     for (const b of document.querySelectorAll('[data-tab]')) b.setAttribute('aria-selected', String(b.dataset.tab === tab));
     // Overdue has its own heading, so this always says the day.
     $('meta').textContent = new Intl.DateTimeFormat('en-AU', { weekday: 'short', day: 'numeric', month: 'short' }).format(now());
+    fitMeta();
     $('view').replaceChildren(...{ today: renderToday, upcoming: renderUpcoming, lists: renderLists }[tab]());
     if ($('listPage').open) renderListPage();
     if ($('findPage').open) renderFind();
   }
+
+  // With large text the date can't fit beside the tabs. Cut to "M…" it says nothing, so it goes.
+  function fitMeta() {
+    const m = $('meta');
+    m.hidden = false;
+    m.hidden = m.scrollWidth > m.clientWidth + 1;
+  }
+  window.addEventListener('resize', fitMeta);
+  document.fonts?.ready.then(fitMeta);
 
   document.querySelector('.tabs').addEventListener('click', e => {
     const b = e.target.closest('[data-tab]');
@@ -288,9 +304,17 @@
   // ---- one list ----
   // Edit mode brings the name, the colours, Delete and the drag handles.
   let openListId;
-  let showDone = false, listEditing = false, freshList = null;
+  let showDone = false, listEditing = false, draft = null, editName = '';
+  // New list's list is only saved once it's named, coloured, given a task or kept with
+  // Done, so backing out, or the app closing, leaves nothing behind.
+  const pageList = () => listOf(openListId) || (draft?.id === openListId ? draft : null);
+  function keepDraft() {
+    if (!draft) return;
+    state.lists = [...state.lists, draft];
+    draft = null;
+  }
   function renderListPage() {
-    const list = listOf(openListId);
+    const list = pageList();
     $('listTitle').textContent = list ? list.name : 'Inbox';
     const mine = state.tasks.filter(t => !t.deleted && (t.list || null) === openListId);
     const open = L.listOrder(mine.filter(t => !t.done));
@@ -299,13 +323,13 @@
     $('listEdit').hidden = !list;
     $('listEdit').textContent = listEditing ? 'Done' : 'Edit';
     $('listShare').hidden = listEditing || !open.length;
-    $('listDelete').hidden = !listEditing;
+    $('listDelete').hidden = !listEditing || !!draft;
     $('listForm').hidden = !listEditing;
     if (listEditing) drawSwatches(list.colour);
     const out = [];
     out.push(open.length ? taskList(open, false, listEditing) : el('p', 'empty', 'Nothing here yet.'));
     if (done.length) {
-      out.push(folded('Completed', done.length, showDone, 'doneToggle', [action('Clear', 'clearDone')]));
+      out.push(folded('Completed', done.length, showDone, 'doneToggle', 'completed tasks', [action('Clear', 'clearDone', 'Clear completed tasks')]));
       if (showDone) out.push(taskList(done, false));
     }
     $('listBody').replaceChildren(...out);
@@ -314,36 +338,35 @@
     openListId = id;
     showDone = false;
     listEditing = editing;
-    $('listName').value = listOf(id)?.name || '';
+    editName = pageList()?.name || '';
+    $('listName').value = editName;
     renderListPage();
     show('listPage');
   }
-  // It's made straight away and named in place, the name ready to type over.
+  // It opens ready to name, the name selected to type over.
   function newList() {
-    const made = { id: L.newId(now()), name: 'New list', colour: COLOURS[state.lists.length % COLOURS.length] };
-    state.lists = [...state.lists, made];
-    freshList = made.id;
-    commit();
-    openList(made.id, true);
+    draft = { id: L.newId(now()), name: 'New list', colour: COLOURS[state.lists.length % COLOURS.length] };
+    openList(draft.id, true);
     $('listName').focus();
     $('listName').select();
   }
-  const setList = change => {
-    freshList = null;   // touched, so it stays
+  function setList(change) {
+    if (draft) { draft = { ...draft, ...change }; keepDraft(); return; }
     state.lists = state.lists.map(l => (l.id === openListId ? { ...l, ...change } : l));
-  };
+  }
   $('listEdit').addEventListener('click', () => {
+    if (listEditing) keepDraft();   // Done keeps a new list, even unnamed
     listEditing = !listEditing;
-    $('listName').value = listOf(openListId)?.name || '';
-    saveNow();
-    renderListPage();
+    editName = pageList()?.name || '';
+    $('listName').value = editName;
+    commit();
   });
-  // Changes save as they're made. An empty name keeps the last one.
+  // Changes save as they're made. Emptied, the name goes back to what it was.
   $('listName').addEventListener('input', () => {
-    const name = $('listName').value.trim();
-    if (!name) return;
-    setList({ name });
+    const name = $('listName').value.trim() || editName;
     $('listTitle').textContent = name;
+    if (pageList()?.name === name) return;
+    setList({ name });
     saveSoon();
   });
   $('listNameForm').addEventListener('submit', e => { e.preventDefault(); $('listName').blur(); });
@@ -365,11 +388,8 @@
     save();
     drawSwatches(b.dataset.colour);
   });
-  // A list made by New list and left as it was, empty, goes again.
   $('listPage').addEventListener('close', () => {
-    const fresh = listOf(freshList);
-    if (fresh && !state.tasks.some(t => t.list === fresh.id)) state.lists = state.lists.filter(l => l !== fresh);
-    freshList = null;
+    draft = null;
     listEditing = false;
     commit();
   });
@@ -405,8 +425,7 @@
     grip.setPointerCapture(e.pointerId);
     r.classList.add('lifted');
     const middle = x => { const b = x.getBoundingClientRect(); return b.top + b.height / 2; };
-    const gap = parseFloat(getComputedStyle(r.parentElement).rowGap) || 0;
-    lifted = { id: e.pointerId, r, rows, from: rows.indexOf(r), to: rows.indexOf(r), y: e.clientY, h: r.getBoundingClientRect().height + gap, centres: rows.map(middle) };
+    lifted = { id: e.pointerId, r, rows, from: rows.indexOf(r), to: rows.indexOf(r), y: e.clientY, h: r.getBoundingClientRect().height, centres: rows.map(middle) };
   });
   $('listBody').addEventListener('pointermove', e => {
     if (!lifted || e.pointerId !== lifted.id) return;
@@ -454,6 +473,8 @@
   });
   $('listQuick').addEventListener('submit', e => {
     e.preventDefault();
+    if (!$('listBox').value.trim()) return;
+    keepDraft();
     if (addFrom($('listBox').value, openListId)) $('listBox').value = '';
   });
   // Its tasks go to the Inbox rather than vanish, and it asks first, saying so.
@@ -854,7 +875,7 @@
     const v = {
       available: { title: 'Update available', msg: '', actions: true, progress: false, go: 'Update' },
       downloading: { title: 'Downloading update', msg: '', actions: false, progress: true },
-      installing: { title: 'Installing update', actions: false, progress: false, msg: 'Confirm on the next screen.' },
+      installing: { title: 'Installing update', actions: false, progress: false, msg: 'Confirm on the next screen. The first time, allow installs from Nudge, then go back.' },
       failed: { title: 'Update didn’t finish', msg: m.message || 'Something went wrong. Try again.', actions: true, progress: false, go: 'Try again' },
     }[m.state];
     if (!v) return;

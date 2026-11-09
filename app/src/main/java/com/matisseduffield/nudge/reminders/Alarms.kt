@@ -35,6 +35,7 @@ object Alarms {
     const val ACTION_SNOOZE = "com.matisseduffield.nudge.SNOOZE"
     const val ACTION_DISMISS = "com.matisseduffield.nudge.DISMISS"
     const val EXTRA_MINUTES = "minutes"
+    private const val EXTRA_USE24 = "use24"
     const val CHANNEL = "reminders"
     private const val EXTRA_OCC = "nudge.occ"
     private const val NOTIFICATION = 2
@@ -167,7 +168,7 @@ object Alarms {
     }
 
     /** [rungNag] is the nudging it rang with, for before the phone is first unlocked, when the tasks can't be read. */
-    fun snooze(context: Context, task: String, occ: String, title: String, body: String, minutes: Long, loud: Boolean = false, rungNag: Int = 0) {
+    fun snooze(context: Context, task: String, occ: String, title: String, body: String, minutes: Long, loud: Boolean = false, rungNag: Int = 0, use24: Boolean? = null) {
         val until = LocalDateTime.now().plusMinutes(minutes)
         val nag = if (Store.unlocked(context)) {
             // Finished in the app since it rang: there's nothing to snooze.
@@ -179,7 +180,7 @@ object Alarms {
             rungNag
         }
         synchronized(lock) {
-            val rung = Alarm(task, task, occ, until, title, body, nag, loud = loud)
+            val rung = Alarm(task, task, occ, until, title, body, nag, loud = loud, use24 = use24)
             Store.writeAlarms(context, AlarmPlan.afterSnooze(Store.readAlarms(context), rung, until))
             cancel(context, task)
             arm(context)
@@ -243,6 +244,7 @@ object Alarms {
             .putExtra("title", alarm.title)
             .putExtra("body", alarm.body)
             .putExtra("nag", alarm.nag)
+            .putUse24(alarm.use24)
             .putExtra("until", System.currentTimeMillis() + AlarmActivity.RING_MS)
         val full = PendingIntent.getActivity(context, requestCode(alarm.task) + 5, page, PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
         val builder = NotificationCompat.Builder(context, URGENT_CHANNEL)
@@ -284,6 +286,7 @@ object Alarms {
             .putExtra(EXTRA_MINUTES, minutes)
             .putExtra("loud", alarm.loud)
             .putExtra("nag", alarm.nag)
+            .putUse24(alarm.use24)
         return PendingIntent.getBroadcast(context, requestCode(alarm.task) + code, intent, PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
     }
 
@@ -319,4 +322,9 @@ object Alarms {
             .addAction(0, "1 hour", action(context, ACTION_SNOOZE, alarm, 4, 60))
         manager.notify(alarm.task, NOTIFICATION, builder.build())
     }
+
+    private fun Intent.putUse24(use24: Boolean?) = apply { if (use24 != null) putExtra(EXTRA_USE24, use24) }
+
+    /** The 24-hour setting an intent carries, or null when it has none. */
+    fun use24Of(intent: Intent): Boolean? = if (intent.hasExtra(EXTRA_USE24)) intent.getBooleanExtra(EXTRA_USE24, false) else null
 }
