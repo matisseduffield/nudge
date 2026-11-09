@@ -480,7 +480,10 @@
     $('fCustomRow').hidden = true;
     $('taskDelete').textContent = 'Delete';
     drawTaskExtras();
+    $('taskPage').querySelector('.page-body').scrollTop = 0;   // each task opens at its title
     show('taskPage');
+    // Sized once the page is showing; hidden, it measures nothing.
+    requestAnimationFrame(fitNotes);
   }
   function drawTaskExtras() {
     const t = task(editing);
@@ -551,18 +554,18 @@
     $('xDue').hidden = !t.due;
     $('xTime').hidden = !t.time;
     $('xUntil').hidden = !t.repeat?.until;
-    $('fNotes').style.height = '';
-    $('fNotes').style.height = `${$('fNotes').scrollHeight}px`;
   }
+  function fitNotes() { $('fNotes').style.height = ''; $('fNotes').style.height = `${$('fNotes').scrollHeight}px`; }
   // A clear button empties its field as if it had been cleared by hand.
   for (const [x, field] of [['xDue', 'fDue'], ['xTime', 'fTime'], ['xUntil', 'fUntil']]) {
-    $(x).addEventListener('click', () => { $(field).value = ''; $(field).dispatchEvent(new Event('change')); });
+    // Focus stays on the row, as the button that was pressed goes away.
+    $(x).addEventListener('click', () => { $(field).value = ''; $(field).dispatchEvent(new Event('change')); $(field).focus(); });
   }
   // Tapping anywhere on a date or time row opens its picker, on a computer too.
   for (const input of document.querySelectorAll('input.over')) {
     input.addEventListener('click', () => { try { input.showPicker(); } catch {} });
   }
-  $('fNotes').addEventListener('input', () => { $('fNotes').style.height = ''; $('fNotes').style.height = `${$('fNotes').scrollHeight}px`; });
+  $('fNotes').addEventListener('input', fitNotes);
   const edit = change => {
     // Ringing like a call goes with the last reminder, or adding one later would bring it back unseen.
     const t = { ...task(editing), ...change };
