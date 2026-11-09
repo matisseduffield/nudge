@@ -26,12 +26,13 @@
   const now = () => new Date();
   const listOf = id => state.lists.find(l => l.id === id);
 
+  let saveTimer = 0;
   function save() {
+    clearTimeout(saveTimer);
+    saveTimer = 0;
     write('state', state);
     const open = state.tasks.filter(L.isOpen);
-    const t = L.today(state.tasks, now());
-    const items = [...t.overdue, ...t.today];
-    toApp({ type: 'save', state: JSON.stringify(state), alarms: L.schedule(state, now()), widget: { day: L.iso(now()), items: items.map(x => ({ id: x.id, title: x.title })) } });
+    toApp({ type: 'save', state: JSON.stringify(state), alarms: L.schedule(state, now()), widget: { day: L.iso(now()), items: L.widgetItems(state.tasks, now()) } });
     if (app && open.some(x => x.reminders.length) && health && !health.notifications && !read('askedNotify')) {
       write('askedNotify', true);
       toApp({ type: 'askNotifications' });
@@ -39,10 +40,19 @@
     askForExact();
   }
   function commit() { save(); render(); }
+  // Typing saves once it pauses, not on every key: each save sets every reminder again.
+  function saveSoon() {
+    clearTimeout(saveTimer);
+    saveTimer = setTimeout(save, 400);
+  }
+  function saveNow() { if (saveTimer) save(); }
+  window.nudgeFlush = saveNow;
+  document.addEventListener('visibilitychange', () => { if (document.hidden) saveNow(); });
+  window.addEventListener('pagehide', saveNow);
 
-  function setTask(id, change) {
+  function setTask(id, change, soon) {
     state.tasks = state.tasks.map(t => (t.id === id ? { ...t, ...change } : t));
-    save();
+    if (soon) saveSoon(); else save();
   }
   const task = id => state.tasks.find(t => t.id === id);
 
@@ -66,13 +76,12 @@
   });
 
   // ---- drawing a task ----
-  function subline(t, showList = true) {
+  // Under a heading that already says the day, the row leaves it out.
+  function subline(t, showList = true, headed = null) {
     const sub = el('div', 'sub');
     const day = L.iso(now());
     if (t.due) {
-      // Under Today, "Today" goes without saying.
-      const plain = tab === 'today' && t.due === day && !$('listPage').open && !$('findPage').open;
-      const when = [plain ? '' : L.dayText(t.due, now()), L.timeText(t.time, state.prefs.use24)].filter(Boolean).join(', ');
+      const when = [t.due === headed ? '' : L.dayText(t.due, now()), L.timeText(t.time, state.prefs.use24)].filter(Boolean).join(', ');
       if (when) sub.append(el('span', !t.done && t.due < day ? 'late' : '', when));
     }
     if (t.repeat) { const s = el('span'); s.innerHTML = ICON.repeat; s.append(L.repeatText(t.repeat)); sub.append(s); }
@@ -90,7 +99,7 @@
     return sub;
   }
 
-  function row(t, showList = true, sortable = false) {
+  function row(t, showList = true, sortable = false, headed = null) {
     const r = el('div', `${t.done ? 'task done' : 'task'}${sortable ? ' sortable' : ''}`);
     r.dataset.id = t.id;
     const tick = el('button', `tick pri${t.pri}`);
@@ -102,7 +111,7 @@
     main.type = 'button';
     main.dataset.open = t.id;
     main.append(el('b', '', t.title));
-    const sub = subline(t, showList);
+    const sub = subline(t, showList, headed);
     if (sub.childElementCount) main.append(sub);
     r.append(tick, main);
     if (sortable) {
@@ -114,7 +123,7 @@
     }
     return r;
   }
-  const taskList = (tasks, showList, sortable) => { const box = el('div', 'tasks'); box.append(...tasks.map(t => row(t, showList, sortable))); return box; };
+  const taskList = (tasks, showList, sortable, headed) => { const box = el('div', 'tasks'); box.append(...tasks.map(t => row(t, showList, sortable, headed))); return box; };
   function head(text, extra, cls = '') {
     const h = el('p', `head ${cls}`, text);
     if (extra) h.append(typeof extra === 'string' ? el('span', '', extra) : extra);
@@ -133,7 +142,8 @@
       const movable = overdue.some(t => L.canMove(t, now()));
       out.push(head(`Overdue (${overdue.length})`, movable ? move : '', 'late'), taskList(overdue));
     }
-    if (today.length) out.push(head('Today', String(today.length)), taskList(today));
+    const day = L.iso(now());
+    if (today.length) out.push(head('Today', String(today.length)), taskList(today, true, false, day));
     const done = L.doneToday(state.tasks, now());
     if (!out.length) out.push(el('p', 'empty', state.tasks.length ? 'Nothing due today.' : 'Type a task below. Try: Call mum tomorrow 5pm #home'));
     if (done.length) {
@@ -142,14 +152,14 @@
       b.dataset.doneToday = '1';
       b.append(el('span', '', `Done today (${done.length})`), el('span', '', showDoneToday ? 'Hide' : 'Show'));
       out.push(b);
-      if (showDoneToday) out.push(taskList(done));
+      if (showDoneToday) out.push(taskList(done, true, false, day));
     }
     return out;
   }
   function renderUpcoming() {
     const { days, someday } = L.upcoming(state.tasks, now());
     const out = [];
-    for (const d of days) out.push(head(L.dayText(d.date, now())), taskList(d.tasks));
+    for (const d of days) out.push(head(L.dayText(d.date, now())), taskList(d.tasks, true, false, d.date));
     if (someday.length) out.push(head('No date', String(someday.length)), taskList(someday));
     if (!out.length) out.push(el('p', 'empty', 'Nothing coming up.'));
     return out;
@@ -462,7 +472,6 @@
     }
     $('fRepeat').value = repeat === '1 days' ? '1 days' : repeat;
     $('fUntil').value = t.repeat?.until || '';
-    $('fNag').value = String(t.nag || 0);
     $('fLoud').checked = !!t.loud;
     $('fPri').value = String(t.pri);
     $('fList').replaceChildren(el('option', '', 'Inbox'), ...state.lists.map(l => { const o = el('option', '', l.name); o.value = l.id; return o; }));
@@ -479,6 +488,9 @@
     $('fUntil').value = t.repeat?.until || '';
     $('fUntil').min = t.due || '';
     $('fLoud').checked = !!t.loud && t.reminders.length > 0;
+    // Ringing like a call nudges by itself, so this shows what it will really do.
+    $('fNag').value = String(L.nagOf(t));
+    $('fNag').disabled = !!t.loud;
     renderLoudFix();
     $('fUntil').value = t.repeat?.until || '';
     const days = t.repeat?.unit === 'days' ? t.repeat.days || [] : null;
@@ -525,8 +537,8 @@
     drawTaskExtras();
   };
   // Changes save as they're made, so there's no Save to miss.
-  $('fTitle').addEventListener('input', () => { const v = $('fTitle').value.trim(); if (v) setTask(editing, { title: v }); });
-  $('fNotes').addEventListener('input', () => setTask(editing, { notes: $('fNotes').value }));
+  $('fTitle').addEventListener('input', () => { const v = $('fTitle').value.trim(); if (v) setTask(editing, { title: v }, true); });
+  $('fNotes').addEventListener('input', () => setTask(editing, { notes: $('fNotes').value }, true));
   $('fDue').addEventListener('change', () => {
     const due = $('fDue').value || null;
     const t = task(editing);
@@ -644,7 +656,7 @@
     render();
     say('Deleted', () => { setTask(id, { deleted: null }); render(); });
   });
-  $('taskPage').addEventListener('close', render);
+  $('taskPage').addEventListener('close', () => { saveNow(); render(); });
 
   // ---- search ----
   function renderFind() {

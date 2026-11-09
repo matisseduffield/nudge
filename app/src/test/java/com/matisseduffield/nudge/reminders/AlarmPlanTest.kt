@@ -1,6 +1,7 @@
 package com.matisseduffield.nudge.reminders
 
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.time.LocalDateTime
@@ -83,9 +84,40 @@ class AlarmPlanTest {
         assertEquals(listOf("t#nag"), AlarmPlan.carriedOver(listOf(due, nag), listOf(due), now) { it }.map { it.id })
     }
 
-    @Test fun aTestReminderSurvivesANewList() {
-        val test = alarm(AlarmPlan.TEST_ID, "", "", now.plusMinutes(1), summary = true)
-        assertEquals(listOf(AlarmPlan.TEST_ID), AlarmPlan.carriedOver(listOf(test), emptyList(), now) { it }.map { it.id })
+    @Test fun aNewTimeThatDayStopsTheNudging() {
+        val nag = alarm("t#nag", "t", "2026-11-06", now.plusMinutes(5), nag = 5)
+        val other = alarm("u#nag", "u", "2026-11-06", now.plusMinutes(5), nag = 5)
+        // Moved from 9am to 5pm: it rings at 5, not every 5 minutes till then.
+        val moved = alarm("t|2026-11-06T17:00", "t", "2026-11-06", now.withHour(17))
+        assertEquals(listOf("u#nag"), AlarmPlan.carriedOver(listOf(nag, other), listOf(moved), now) { it }.map { it.id })
+        assertEquals(setOf("t" to "2026-11-06"), AlarmPlan.rescheduled(listOf(nag, other), listOf(moved), now))
+        // A later reminder it already had is no reason to stop.
+        assertEquals(listOf("t#nag"), AlarmPlan.carriedOver(listOf(nag, moved), listOf(moved), now) { it }.map { it.id })
+        assertTrue(AlarmPlan.rescheduled(listOf(nag, moved), listOf(moved), now).isEmpty())
+        // Nor is a new time on another date.
+        val tomorrow = alarm("t|2026-11-07T09:00", "t", "2026-11-07", now.plusDays(1))
+        assertEquals(listOf("t#nag"), AlarmPlan.carriedOver(listOf(nag), listOf(tomorrow), now) { it }.map { it.id })
+    }
+
+    @Test fun aMissedReminderFromAnEarlierDaySaysItsDate() {
+        val today = alarm("a", "t", "2026-11-06", now.minusHours(1)).copy(body = "Today, 9am")
+        assertEquals("Today, 9am", AlarmPlan.missedNotice(today, now)!!.body)
+        val yesterday = alarm("b", "t", "2026-11-05", now.minusDays(1)).copy(body = "Today, 5pm")
+        assertEquals("Thu 5 Nov, 5pm", AlarmPlan.missedNotice(yesterday, now)!!.body)
+        val noTime = alarm("c", "t", "2026-11-05", now.minusDays(1)).copy(body = "Today")
+        assertEquals("Thu 5 Nov", AlarmPlan.missedNotice(noTime, now)!!.body)
+        val newYear = LocalDateTime.of(2027, 1, 1, 9, 0)
+        val lastYear = alarm("d", "t", "2026-12-31", newYear.minusDays(1)).copy(body = "Today, 5pm")
+        assertEquals("Thu 31 Dec 2026, 5pm", AlarmPlan.missedNotice(lastYear, newYear)!!.body)
+    }
+
+    @Test fun aMorningSummaryFromAnEarlierDayIsLeftOut() {
+        val old = alarm("summary|2026-11-05", "", "", now.minusDays(1), summary = true)
+        val fresh = alarm("summary|2026-11-06", "", "", now.minusHours(2), summary = true)
+        val keepGoing = alarm("keep-going", "", "", now.minusDays(1), summary = true)
+        assertNull(AlarmPlan.missedNotice(old, now))
+        assertEquals(fresh, AlarmPlan.missedNotice(fresh, now))
+        assertEquals(keepGoing, AlarmPlan.missedNotice(keepGoing, now))
     }
 
     @Test fun dismissStopsNudgingAndNothingElse() {

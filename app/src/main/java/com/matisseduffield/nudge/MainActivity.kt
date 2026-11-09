@@ -190,6 +190,8 @@ class MainActivity : ComponentActivity() {
 
     override fun onPause() {
         Store.onActions = null
+        // Typing saves once it pauses. Leaving the app saves whatever's still waiting.
+        web.evaluateJavascript("window.nudgeFlush && nudgeFlush()", null)
         web.onPause()
         web.pauseTimers()
         super.onPause()
@@ -309,7 +311,6 @@ class MainActivity : ComponentActivity() {
             }
             "askNotifications" -> if (Build.VERSION.SDK_INT >= 33) askNotifications.launch(Manifest.permission.POST_NOTIFICATIONS)
             "openSettings" -> openSettingsFor(msg.optString("what"))
-            "testAlarm" -> Alarms.test(this, msg.optBoolean("loud"))
             "checkUpdate" -> updates.checkNow()
             "installUpdate" -> updates.installPending()
         }

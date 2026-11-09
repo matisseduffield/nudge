@@ -115,6 +115,7 @@ p, h1, h2 { margin: 0; }
 .quick-row { display: grid; grid-template-columns: minmax(0, 1fr) 46px; gap: 8px; }
 .box { width: 100%; min-width: 0; min-height: 46px; padding: 0 12px; background: var(--surface); border: 0; border-radius: 9px; font-size: 1rem; }
 .box::placeholder { color: var(--muted); }
+.box:disabled { opacity: .6; }
 .box[type="date"], .box[type="time"] { padding-right: 8px; }
 .box.grow { flex: 1; min-width: 0; }
 .add { display: grid; place-items: center; height: 46px; padding: 0; background: var(--ink); border: 0; border-radius: 9px; color: var(--on-ink); }

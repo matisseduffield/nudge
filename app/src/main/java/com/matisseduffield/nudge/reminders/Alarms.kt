@@ -38,12 +38,16 @@ object Alarms {
     const val CHANNEL = "reminders"
     private const val EXTRA_OCC = "nudge.occ"
     private const val NOTIFICATION = 2
-    private const val TEST_NOTIFICATION = 3
     private const val URGENT_CHANNEL = "urgent"
     private const val LOUD_NAG = 5
     private const val SUMMARY_CHANNEL = "summary"
     private const val SUMMARY_ID = 1
     private val lock = Any()
+    private const val UNKNOWN = "?"
+
+    // What each slot was last set to, so a new list from the page only touches the ones
+    // that changed. Unknown in a new process, when every slot is set again.
+    private val armedSlots = Array(AlarmPlan.MAX_ARMED) { UNKNOWN }
 
     fun canBeExact(context: Context): Boolean =
         Build.VERSION.SDK_INT < 31 || context.getSystemService(AlarmManager::class.java).canScheduleExactAlarms()
@@ -64,9 +68,10 @@ object Alarms {
         val now = LocalDateTime.now()
         val tasks = openTasks(context)
         val fresh = (0 until array.length()).mapNotNull { i -> array.optJSONObject(i)?.let(Store::parse) }
-        val kept = AlarmPlan.carriedOver(Store.readAlarms(context), fresh, now) { keep(it, tasks) }
+        val old = Store.readAlarms(context)
+        val kept = AlarmPlan.carriedOver(old, fresh, now) { keep(it, tasks) }
         Store.writeAlarms(context, (fresh + kept).distinctBy { it.id })
-        clearFinished(context, tasks)
+        clearFinished(context, tasks, AlarmPlan.rescheduled(old, fresh, now))
         arm(context)
     }
 
@@ -86,7 +91,8 @@ object Alarms {
         (occ >= dueOf(task) || (task.isNull("repeat") && dueOf(task) <= LocalDate.now().toString()))
 
     // What survives a new list from the page. Nudging takes the task's latest title and
-    // interval, and stops if that's been switched off.
+    // interval, and stops if that's been switched off. One whose task has been given a
+    // new time that day was already left behind by AlarmPlan.carriedOver.
     private fun keep(alarm: Alarm, tasks: Map<String, JSONObject>): Alarm? {
         if (alarm.summary) return alarm
         val task = tasks[alarm.task]
@@ -98,35 +104,44 @@ object Alarms {
         return if (nag > 0 && reminders > 0) alarm.copy(title = task.optString("title"), nag = nag, loud = loud) else null
     }
 
-    // A notification for something finished in the app shouldn't stay up.
-    private fun clearFinished(context: Context, tasks: Map<String, JSONObject>) {
+    // A notification for something finished in the app shouldn't stay up, nor one for a
+    // task that's been given a new time that day.
+    private fun clearFinished(context: Context, tasks: Map<String, JSONObject>, rescheduled: Set<Pair<String, String>>) {
         val manager = context.getSystemService(NotificationManager::class.java)
         for (shown in manager.activeNotifications) {
             val task = shown.tag ?: continue
             val occ = shown.notification.extras.getString(EXTRA_OCC).orEmpty()
             val quietened = shown.notification.channelId == URGENT_CHANNEL && tasks[task]?.optBoolean("loud") != true
-            if (!current(tasks[task], occ) || quietened) cancel(context, task)
+            if (!current(tasks[task], occ) || quietened || (task to occ) in rescheduled) cancel(context, task)
         }
     }
 
-    /** Sets the soonest alarms, and rings any that were missed. Safe to call any time. */
-    fun arm(context: Context) = synchronized(lock) {
+    /**
+     * Sets the soonest alarms, and rings any that were missed. Safe to call any time.
+     * [reset] sets every slot again, for when the phone may have dropped or moved them.
+     */
+    fun arm(context: Context, reset: Boolean = false) = synchronized(lock) {
         val now = LocalDateTime.now()
         val all = Store.readAlarms(context)
-        val missed = AlarmPlan.missed(all, now)
-        missed.forEach { show(context, it) }
+        val missed = AlarmPlan.missed(all, now).map { it to AlarmPlan.missedNotice(it, now) }
+        missed.forEach { (_, notice) -> if (notice != null) show(context, notice) }
         // A missed alarm rang all the same, so Keep Nudging carries on from it.
-        val kept = missed.fold(AlarmPlan.withoutPast(all, now)) { list, alarm -> AlarmPlan.afterRinging(list, alarm, now) }
+        val kept = missed.fold(AlarmPlan.withoutPast(all, now)) { list, (alarm, notice) -> AlarmPlan.afterRinging(list, notice ?: alarm, now) }
         if (kept != all) Store.writeAlarms(context, kept)
 
+        if (reset) armedSlots.fill(UNKNOWN)
         val manager = context.getSystemService(AlarmManager::class.java)
+        val exact = canBeExact(context)
         val armed = AlarmPlan.toArm(kept, now)
         for (index in 0 until AlarmPlan.MAX_ARMED) {
             val alarm = armed.getOrNull(index)
+            val key = alarm?.let { "${it.id}@${millis(it.at)}@$exact" }.orEmpty()
+            if (armedSlots[index] == key) continue
             val intent = slot(context, index, alarm?.id)
             manager.cancel(intent)
+            armedSlots[index] = key
             if (alarm == null) continue
-            if (canBeExact(context)) manager.setExactAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, millis(alarm.at), intent)
+            if (exact) manager.setExactAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, millis(alarm.at), intent)
             else manager.setAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, millis(alarm.at), intent)
         }
     }
@@ -141,14 +156,6 @@ object Alarms {
         arm(context)
     }
 
-    /** Rings through the same path as a real reminder, so it proves the whole chain. */
-    fun test(context: Context, loud: Boolean) = synchronized(lock) {
-        val body = if (loud) "This is how an urgent task rings." else "Your reminders are working."
-        val alarm = Alarm(AlarmPlan.TEST_ID, "", "", LocalDateTime.now().plusMinutes(1), "Test reminder", body, 0, true, loud)
-        Store.writeAlarms(context, Store.readAlarms(context).filter { it.id != alarm.id } + alarm)
-        arm(context)
-    }
-
     fun done(context: Context, task: String, occ: String) {
         synchronized(lock) {
             Store.writeAlarms(context, AlarmPlan.afterDone(Store.readAlarms(context), task, occ))
@@ -159,13 +166,18 @@ object Alarms {
         Store.addAction(context, JSONObject().put("type", "done").put("task", task).put("occ", occ).put("when", System.currentTimeMillis()))
     }
 
-    fun snooze(context: Context, task: String, occ: String, title: String, body: String, minutes: Long, loud: Boolean = false) {
+    /** [rungNag] is the nudging it rang with, for before the phone is first unlocked, when the tasks can't be read. */
+    fun snooze(context: Context, task: String, occ: String, title: String, body: String, minutes: Long, loud: Boolean = false, rungNag: Int = 0) {
         val until = LocalDateTime.now().plusMinutes(minutes)
-        // Finished in the app since it rang: there's nothing to snooze.
-        val saved = openTasks(context)[task]
-        if (!current(saved, occ)) return cancel(context, task)
-        // The snooze comes back as insistent as the reminder was.
-        val nag = saved!!.optInt("nag").takeIf { it > 0 } ?: if (saved.optBoolean("loud")) LOUD_NAG else 0
+        val nag = if (Store.unlocked(context)) {
+            // Finished in the app since it rang: there's nothing to snooze.
+            val saved = openTasks(context)[task]
+            if (!current(saved, occ)) return cancel(context, task)
+            // The snooze comes back as insistent as the reminder was.
+            saved!!.optInt("nag").takeIf { it > 0 } ?: if (saved.optBoolean("loud")) LOUD_NAG else 0
+        } else {
+            rungNag
+        }
         synchronized(lock) {
             val rung = Alarm(task, task, occ, until, title, body, nag, loud = loud)
             Store.writeAlarms(context, AlarmPlan.afterSnooze(Store.readAlarms(context), rung, until))
@@ -177,12 +189,6 @@ object Alarms {
 
     /** Dealt with on the full-screen page: stops the ringing and any nudging, and the task stays open. */
     fun stop(context: Context, task: String) {
-        val manager = context.getSystemService(NotificationManager::class.java)
-        if (task.isEmpty()) {
-            manager.cancel(TEST_NOTIFICATION)
-            AlarmOverlay.close(context, task)
-            return AlarmActivity.close(task)
-        }
         dismiss(context, task)
         cancel(context, task)
     }
@@ -202,9 +208,7 @@ object Alarms {
 
     /** Whether an urgent task's notification is still up, for the page's queue. */
     fun ringing(context: Context, task: String) =
-        context.getSystemService(NotificationManager::class.java).activeNotifications.any {
-            if (task.isEmpty()) it.id == TEST_NOTIFICATION else it.tag == task
-        }
+        context.getSystemService(NotificationManager::class.java).activeNotifications.any { it.tag == task }
 
     /** Whether the urgent channel exists and hasn't been switched off. */
     fun urgentChannelOn(context: Context): Boolean =
@@ -231,7 +235,6 @@ object Alarms {
     // The full page, ringing over everything. Android shows it by itself on a locked
     // phone. On one in use it only shows a banner, so AlarmOverlay takes over there.
     private fun showLoud(context: Context, alarm: Alarm) {
-        val test = alarm.id == AlarmPlan.TEST_ID
         val page = Intent(context, AlarmActivity::class.java)
             .setFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_NO_USER_ACTION)
             .setData("nudge://ring/${alarm.task}".toUri())
@@ -239,6 +242,7 @@ object Alarms {
             .putExtra("occ", alarm.occ)
             .putExtra("title", alarm.title)
             .putExtra("body", alarm.body)
+            .putExtra("nag", alarm.nag)
             .putExtra("until", System.currentTimeMillis() + AlarmActivity.RING_MS)
         val full = PendingIntent.getActivity(context, requestCode(alarm.task) + 5, page, PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
         val builder = NotificationCompat.Builder(context, URGENT_CHANNEL)
@@ -254,16 +258,13 @@ object Alarms {
             .setContentIntent(full)
             .setFullScreenIntent(full, true)
             .addExtras(Bundle().apply { putString(EXTRA_OCC, alarm.occ) })
-        if (!test) {
-            builder
-                .addAction(0, "Done", action(context, ACTION_DONE, alarm, 2))
-                .addAction(0, "10 min", action(context, ACTION_SNOOZE, alarm, 3, 10))
-                .addAction(0, "1 hour", action(context, ACTION_SNOOZE, alarm, 4, 60))
-        }
+            .addAction(0, "Done", action(context, ACTION_DONE, alarm, 2))
+            .addAction(0, "10 min", action(context, ACTION_SNOOZE, alarm, 3, 10))
+            .addAction(0, "1 hour", action(context, ACTION_SNOOZE, alarm, 4, 60))
         // Insistent repeats the sound until it's dealt with or the timeout above.
         val notification = builder.build().apply { flags = flags or android.app.Notification.FLAG_INSISTENT }
         val manager = context.getSystemService(NotificationManager::class.java)
-        if (test) manager.notify(TEST_NOTIFICATION, notification) else manager.notify(alarm.task, NOTIFICATION, notification)
+        manager.notify(alarm.task, NOTIFICATION, notification)
         // On a phone in use, Android would stop at a banner, so draw over the screen.
         val locked = context.getSystemService(KeyguardManager::class.java).isKeyguardLocked ||
             !context.getSystemService(PowerManager::class.java).isInteractive
@@ -282,6 +283,7 @@ object Alarms {
             .putExtra("body", alarm.body)
             .putExtra(EXTRA_MINUTES, minutes)
             .putExtra("loud", alarm.loud)
+            .putExtra("nag", alarm.nag)
         return PendingIntent.getBroadcast(context, requestCode(alarm.task) + code, intent, PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
     }
 
@@ -294,9 +296,7 @@ object Alarms {
             .setData("nudge://open/${alarm.task}".toUri())
             .putExtra(EXTRA_TASK, alarm.task)
         val tap = PendingIntent.getActivity(context, requestCode(alarm.task), open, PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
-        // The test goes through the Reminders channel, so it shows what a real one would do.
-        val test = alarm.id == AlarmPlan.TEST_ID
-        val builder = NotificationCompat.Builder(context, if (alarm.summary && !test) SUMMARY_CHANNEL else CHANNEL)
+        val builder = NotificationCompat.Builder(context, if (alarm.summary) SUMMARY_CHANNEL else CHANNEL)
             .setSmallIcon(R.drawable.ic_notify)
             .setColor(context.getColor(R.color.icon_bg))
             .setContentTitle(alarm.title)
@@ -307,7 +307,7 @@ object Alarms {
             .addExtras(Bundle().apply { putString(EXTRA_OCC, alarm.occ) })
         val manager = context.getSystemService(NotificationManager::class.java)
         if (alarm.summary) {
-            manager.notify(if (test) TEST_NOTIFICATION else SUMMARY_ID, builder.build())
+            manager.notify(SUMMARY_ID, builder.build())
             return
         }
         builder

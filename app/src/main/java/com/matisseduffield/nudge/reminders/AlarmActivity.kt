@@ -33,6 +33,7 @@ class AlarmActivity : ComponentActivity() {
     private var occ = ""
     private var title = ""
     private var body = ""
+    private var nag = 0
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -43,10 +44,7 @@ class AlarmActivity : ComponentActivity() {
             override fun handleOnBackPressed() = Unit
         })
         load(intent)
-        findViewById<View>(R.id.alarm_done).setOnClickListener {
-            val answered = task
-            if (answered.isEmpty()) Alarms.stop(this, answered) else Alarms.done(this, answered, occ)
-        }
+        findViewById<View>(R.id.alarm_done).setOnClickListener { Alarms.done(this, task, occ) }
         findViewById<View>(R.id.alarm_ten).setOnClickListener { snooze(10) }
         findViewById<View>(R.id.alarm_hour).setOnClickListener { snooze(60) }
         findViewById<View>(R.id.alarm_stop).setOnClickListener { Alarms.stop(this, task) }
@@ -64,6 +62,7 @@ class AlarmActivity : ComponentActivity() {
         occ = from.getStringExtra("occ").orEmpty()
         title = from.getStringExtra("title").orEmpty()
         body = from.getStringExtra("body").orEmpty()
+        nag = from.getIntExtra("nag", 0)
         findViewById<TextView>(R.id.alarm_title).text = title
         findViewById<TextView>(R.id.alarm_body).text = body
         // Left alone, the page goes when the ringing does, and nudging brings it back.
@@ -87,7 +86,7 @@ class AlarmActivity : ComponentActivity() {
     }
 
     private fun snooze(minutes: Long) {
-        if (task.isEmpty()) Alarms.stop(this, task) else Alarms.snooze(this, task, occ, title, body, minutes, true)
+        Alarms.snooze(this, task, occ, title, body, minutes, true, nag)
     }
 
     override fun onDestroy() {

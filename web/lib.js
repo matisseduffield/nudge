@@ -108,6 +108,16 @@
       || take(/\severy\s+other\s+(day|week|month|year)\b/i, m => { out.repeat = { every: 2, unit: m[1].toLowerCase() }; })
       || take(/\severy\s+weekday\b/i, () => { out.repeat = { every: 1, unit: 'weekdays' }; })
       || take(/\severy\s+(day|week|month|year)\b/i, m => { out.repeat = { every: 1, unit: m[1].toLowerCase() }; });
+    // A repeat word right at the end comes off now, so a date or time before it ("14 Feb
+    // yearly") is at the end of the line too. One before a date is taken further down.
+    const repeatWord = () => {
+      if (out.repeat) return;
+      take(new RegExp(`\\s(daily|weekly|monthly|yearly|weekdays)${END}`, 'i'), m => {
+        const word = m[1].toLowerCase();
+        out.repeat = word === 'weekdays' ? { every: 1, unit: 'weekdays' } : { every: 1, unit: { daily: 'day', weekly: 'week', monthly: 'month', yearly: 'year' }[word] };
+      });
+    };
+    repeatWord();
 
     // Part of the day, which also settles "at 9" one way or the other.
     let part = null, tonight = false;
@@ -124,8 +134,17 @@
       return true;
     };
     const DATE_NEXT = `(?=\\s*$|\\s+(?:today|tomorrow|tmrw|tmr|on\\s|next\\s|in\\s+\\d|${LONG_DAY}|${SHORT_DAY}))`;
-    take(/\s(?:at\s+)?(\d{1,2})(?:[:.](\d{2}))?\s*(am|pm)\b/i, m => clock(m[1], m[2], m[3]))
-      || take(/\sat\s+(\d{1,2}):(\d{2})\b/, m => clock(m[1], m[2]))
+    // Hours 1 to 7 with no am, pm or part of the day mean the afternoon: nobody means 3:30am.
+    const guess = (h, m) => { const n = Number(h); return clock(!part && n >= 1 && n <= 7 ? n + 12 : n, m); };
+    // "In 20 min", "in 2 hours": that clock time, today or past midnight.
+    take(/\sin\s+(\d{1,3})\s*(mins?|minutes?|hrs?|hours?)\b/i, m => {
+      const at = new Date(+now + Number(m[1]) * (m[2][0].toLowerCase() === 'h' ? 60 : 1) * 60000);
+      out.time = `${pad(at.getHours())}:${pad(at.getMinutes())}`;
+      out.due = iso(at);
+    })
+      || take(/\s(?:at\s+)?(\d{1,2})(?:[:.](\d{2}))?\s*(am|pm)\b/i, m => clock(m[1], m[2], m[3]))
+      || take(/\sat\s+(\d{1,2}):(\d{2})\b/, m => guess(m[1], m[2]))
+      // Two-digit hours only, so "Read John 3:16" stays a title.
       || take(new RegExp(`\\s(\\d{2}):(\\d{2})${END}`), m => clock(m[1], m[2]))
       || take(new RegExp(`\\sat\\s+(\\d{1,2})${DATE_NEXT}`), m => {
         const h = Number(m[1]);
@@ -168,15 +187,19 @@
       || take(new RegExp(`\\s(\\d{1,2})(?:st|nd|rd|th)?\\s+(${MONTH})${END}`, 'i'), m => dayOfYear(Number(m[1]), monthOf(m[2].toLowerCase())))
       || take(new RegExp(`\\son\\s+(${MONTH})\\s+(\\d{1,2})(?:st|nd|rd|th)?\\b`, 'i'), m => dayOfYear(Number(m[2]), monthOf(m[1].toLowerCase())))
       || take(new RegExp(`\\s(${MONTH})\\s+(\\d{1,2})(?:st|nd|rd|th)?${END}`, 'i'), m => dayOfYear(Number(m[2]), monthOf(m[1].toLowerCase())))
+      // "On the 1st": the next date with that day of the month.
+      || take(/\son\s+the\s+(\d{1,2})(?:st|nd|rd|th)\b/i, m => {
+        const d = Number(m[1]);
+        for (let k = 0; d >= 1 && d <= 31 && k < 13; k++) {
+          const when = new Date(now.getFullYear(), now.getMonth() + k, d);
+          if (when.getDate() === d && iso(when) >= today) { out.due = iso(when); return true; }
+        }
+        return false;
+      })
       || take(/\son\s+(\d{1,2})\/(\d{1,2})\b/, m => dayOfYear(Number(m[1]), Number(m[2]) - 1))
       || take(new RegExp(`\\s(\\d{1,2})/(\\d{1,2})${END}`), m => dayOfYear(Number(m[1]), Number(m[2]) - 1));
 
-    if (!out.repeat) {
-      take(new RegExp(`\\s(daily|weekly|monthly|yearly|weekdays)${END}`, 'i'), m => {
-        const word = m[1].toLowerCase();
-        out.repeat = word === 'weekdays' ? { every: 1, unit: 'weekdays' } : { every: 1, unit: { daily: 'day', weekly: 'week', monthly: 'month', yearly: 'year' }[word] };
-      });
-    }
+    repeatWord();
 
     if (onDay !== null && !out.due) out.due = parseDay(today).getDay() === onDay ? today : nextWeekday(today, onDay);
     if (onDays && !out.due) out.due = onDays.includes(parseDay(today).getDay()) ? today : nextDate(today, out.repeat);
@@ -225,14 +248,14 @@
     !!(askExact && hasReminders && !asked && health && health.notifications && !health.exact);
   // What's stopping a reminder ringing on time, if anything.
   const exactBlocker = (health, askExact) => (health && askExact && !health.exact
-    ? { what: 'alarms', text: 'Allow alarms and reminders, or this may ring late. Tap to turn it on.', short: 'Allow alarms and reminders, then test again.' } : null);
+    ? { what: 'alarms', text: 'Allow alarms and reminders, or this may ring late. Tap to turn it on.' } : null);
   // What's stopping an urgent task taking over the screen, if anything.
   function loudBlocker(health, askExact) {
     if (!health) return null;
     const late = exactBlocker(health, askExact);
     if (late) return late;
-    if (!health.overlay) return { what: 'overlay', text: 'Allow Show over other apps, or this stays a banner while you’re using your phone. Tap to turn it on.', short: 'Allow Show over other apps, then test again.' };
-    if (!health.fullScreen) return { what: 'fullscreen', text: 'Allow full-screen alarms, or this won’t show on the lock screen. Tap to turn it on.', short: 'Allow full-screen alarms, then test again.' };
+    if (!health.overlay) return { what: 'overlay', text: 'Allow Show over other apps, or this stays a banner while you’re using your phone. Tap to turn it on.' };
+    if (!health.fullScreen) return { what: 'fullscreen', text: 'Allow full-screen alarms, or this won’t show on the lock screen. Tap to turn it on.' };
     return null;
   }
 
@@ -380,6 +403,14 @@
 
   const byDue = (a, b) => (a.due || '9999').localeCompare(b.due || '9999') || (a.time || '99').localeCompare(b.time || '99') || b.pri - a.pri || a.created - b.created;
 
+  // What the home screen widget is given: open tasks up to a week ahead, each with its
+  // date, so it can move on to a new day by itself before the app is next opened.
+  const WIDGET_DAYS = 7;
+  function widgetItems(tasks, now) {
+    const until = addDays(iso(now), WIDGET_DAYS);
+    return tasks.filter(t => isOpen(t) && t.due && t.due <= until).sort(byDue).map(t => ({ id: t.id, title: t.title, due: t.due }));
+  }
+
   function today(tasks, now) {
     const day = iso(now);
     const open = tasks.filter(isOpen);
@@ -460,7 +491,7 @@
     return { lists, tasks, prefs: { summary: null, defaultReminder: 0, use24: false, ...(s.prefs || {}) } };
   }
 
-  const lib = { reminderWarning, shouldAskExact, exactBlocker, loudBlocker, iso, parseDay, addDays, daysBetween, atTime, local, nextDate, repeatText, parseQuick, makeTask, newId, isOpen, complete, occurrences, firings, schedule, applyActions, today, upcoming, search, dayText, timeText, reminderText, cleanState, ensureRing, fitToDays, canMove, moveOverdue, doneToday, listOrder, tidy };
+  const lib = { reminderWarning, shouldAskExact, exactBlocker, loudBlocker, iso, parseDay, addDays, daysBetween, atTime, local, nextDate, repeatText, parseQuick, makeTask, newId, isOpen, complete, occurrences, firings, schedule, applyActions, today, upcoming, search, dayText, timeText, reminderText, cleanState, ensureRing, fitToDays, nagOf, widgetItems, canMove, moveOverdue, doneToday, listOrder, tidy };
   if (typeof module === 'object' && module.exports) module.exports = lib;
   else root.NudgeLib = lib;
 })(this);

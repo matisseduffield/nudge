@@ -35,6 +35,7 @@
 
         <activity
             android:name=".reminders.AlarmActivity"
+            android:directBootAware="true"
             android:excludeFromRecents="true"
             android:exported="false"
             android:launchMode="singleInstance"
@@ -43,15 +44,21 @@
             android:theme="@style/Theme.Nudge.Alarm"
             android:turnScreenOn="true" />
 
+        <!-- These two, and the urgent page above, also run after a restart before the
+             phone is first unlocked, so reminders ring then. Until it's unlocked they
+             only touch device-protected storage. -->
         <receiver
             android:name=".reminders.ReminderReceiver"
+            android:directBootAware="true"
             android:exported="false" />
 
         <!-- All these do is set the alarms again. -->
         <receiver
             android:name=".reminders.SystemReceiver"
+            android:directBootAware="true"
             android:exported="true">
             <intent-filter>
+                <action android:name="android.intent.action.LOCKED_BOOT_COMPLETED" />
                 <action android:name="android.intent.action.BOOT_COMPLETED" />
                 <action android:name="android.intent.action.MY_PACKAGE_REPLACED" />
                 <action android:name="android.intent.action.TIME_SET" />

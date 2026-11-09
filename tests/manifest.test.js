@@ -55,3 +55,12 @@ test('settings links to the privacy policy, which opens outside the app', () => 
   const activity = read('app/src/main/java/com/matisseduffield/nudge/MainActivity.kt');
   assert.match(activity, /if \(request\.url\.host == APP_HOST\) return false\s+runCatching \{ startActivity\(Intent\(Intent\.ACTION_VIEW, request\.url\)\) \}/);
 });
+
+test('reminders ring after a restart before the phone is unlocked', () => {
+  const manifest = read('app/src/main/AndroidManifest.xml');
+  const component = name => manifest.slice(manifest.indexOf(`android:name=".reminders.${name}"`)).split('>')[0];
+  for (const name of ['ReminderReceiver', 'SystemReceiver', 'AlarmActivity']) assert.match(component(name), /android:directBootAware="true"/, name);
+  assert.match(manifest, /android\.intent\.action\.LOCKED_BOOT_COMPLETED/);
+  // The alarms live where they can be read then.
+  assert.match(read('app/src/main/java/com/matisseduffield/nudge/reminders/Store.kt'), /createDeviceProtectedStorageContext/);
+});

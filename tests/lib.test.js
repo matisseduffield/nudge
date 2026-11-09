@@ -59,6 +59,24 @@ test('quick add knows repeats', () => {
   assert.equal(q('Rent monthly 31 dec').repeat.dom, 31);
 });
 
+test('quick add reads times and dates people actually type', () => {
+  const at = text => L.parseQuick(text, new Date(2026, 10, 9, 14, 20), []);   // Mon 9 Nov, 2:20pm
+  // "At 3:30" is the afternoon, like "at 3"; never 3:30 in the morning.
+  assert.deepEqual([at('Pick up kids at 3:30').due, at('Pick up kids at 3:30').time], ['2026-11-09', '15:30']);
+  assert.equal(at('Gym at 7:30 in the morning').time, '07:30');
+  // A date before a repeat word.
+  const b = at('Mum birthday 14 Feb yearly');
+  assert.deepEqual([b.title, b.due, b.repeat.unit], ['Mum birthday', '2027-02-14', 'year']);
+  // In so many minutes or hours.
+  const o = at('Check oven in 20 min');
+  assert.deepEqual([o.title, o.due, o.time], ['Check oven', '2026-11-09', '14:40']);
+  assert.deepEqual([at('Call back in 10 hours').due, at('Call back in 10 hours').time], ['2026-11-10', '00:20']);
+  // A day of the month.
+  const r = at('Pay rent on the 1st every month');
+  assert.deepEqual([r.title, r.due, r.repeat.dom], ['Pay rent', '2026-12-01', 1]);
+  assert.equal(at('Pay on the 31st').due, '2026-12-31');
+});
+
 test('quick add leaves ordinary words alone', () => {
   assert.equal(q('Buy 2 milk').title, 'Buy 2 milk');
   assert.equal(q('Buy 2 milk').due, null);
@@ -430,4 +448,25 @@ test('a weekday repeat never starts on a weekend', () => {
 test('a picked reminder time follows the 24-hour setting', () => {
   assert.equal(L.reminderText({ at: '2026-11-07T17:30' }, NOW), 'Tomorrow, 5:30pm');
   assert.equal(L.reminderText({ at: '2026-11-07T17:30' }, NOW, true), 'Tomorrow, 17:30');
+});
+
+test('the widget gets a week of dated tasks, so it can move on to a new day by itself', () => {
+  const tasks = [
+    task({ id: 'late', title: 'Late', due: '2026-11-04' }),
+    task({ id: 'now', title: 'Now', due: '2026-11-06', time: '09:00' }),
+    task({ id: 'week', title: 'Week', due: '2026-11-13' }),
+    task({ id: 'far', title: 'Far', due: '2026-11-14' }),
+    task({ id: 'none', title: 'No date' }),
+    task({ id: 'done', title: 'Done', due: '2026-11-06', done: +NOW }),
+  ];
+  const items = L.widgetItems(tasks, NOW);
+  assert.deepEqual(items.map(x => x.id), ['late', 'now', 'week']);
+  assert.deepEqual(items[1], { id: 'now', title: 'Now', due: '2026-11-06' });
+});
+
+test('an urgent task nudges every 5 minutes unless it says otherwise', () => {
+  assert.equal(L.nagOf(task({ loud: true })), 5);
+  assert.equal(L.nagOf(task({ loud: true, nag: 15 })), 15);
+  assert.equal(L.nagOf(task({})), 0);
+  assert.equal(L.nagOf(task({ nag: 30 })), 30);
 });
