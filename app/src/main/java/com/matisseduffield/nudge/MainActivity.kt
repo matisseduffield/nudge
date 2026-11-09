@@ -35,6 +35,8 @@ import com.matisseduffield.nudge.updates.AppUpdates
 import com.matisseduffield.nudge.widget.TodayWidget
 import org.json.JSONArray
 import org.json.JSONObject
+import java.util.concurrent.ExecutorService
+import java.util.concurrent.Executors
 
 /**
  * Hosts web/index.html (bundled as assets) in a WebView. The page owns the tasks
@@ -54,6 +56,11 @@ class MainActivity : ComponentActivity() {
         // The page's nudgeBack() closes what's open, and says whether it did
         // anything. If not, Back leaves the app.
         const val BACK_JS = "(() => typeof nudgeBack === 'function' && nudgeBack() === true)()"
+
+        // Saves write files and set fifty alarms, too slow for the main thread. One thread,
+        // so they land in the order they were made, and outlives a rebuilt screen so the
+        // new page's read waits behind the old page's last save.
+        val disk: ExecutorService = Executors.newSingleThreadExecutor()
     }
 
     private lateinit var web: WebView
@@ -281,12 +288,21 @@ class MainActivity : ComponentActivity() {
         val msg = runCatching { JSONObject(message.data ?: return) }.getOrNull() ?: return
         when (msg.optString("type")) {
             "hello" -> {
-                page = reply
-                send(JSONObject().put("type", "info").put("version", BuildConfig.VERSION_NAME).put("updates", BuildConfig.SELF_UPDATER).put("askExact", BuildConfig.ASK_EXACT_ALARM))
-                send(JSONObject().put("type", "state").put("state", Store.readState(this)).put("actions", Store.takeActions(this)))
-                sendHealth()
-                sendPendingOpen()
-                updates.onPageReady()
+                // Read after any save still being written. The page is only known once that's
+                // sent, so no taps or tasks to open reach it before its tasks do.
+                val app = applicationContext
+                disk.execute {
+                    val state = JSONObject().put("type", "state").put("state", Store.readState(app)).put("actions", Store.takeActions(app))
+                    runOnUiThread {
+                        if (isDestroyed) return@runOnUiThread
+                        page = reply
+                        send(JSONObject().put("type", "info").put("version", BuildConfig.VERSION_NAME).put("updates", BuildConfig.SELF_UPDATER).put("askExact", BuildConfig.ASK_EXACT_ALARM))
+                        send(state)
+                        sendHealth()
+                        sendPendingOpen()
+                        updates.onPageReady()
+                    }
+                }
             }
             "back" -> {
                 pageWantsBack = msg.optBoolean("enabled")
@@ -304,10 +320,14 @@ class MainActivity : ComponentActivity() {
                 if (msg.optString("kind") == "tick") HapticFeedbackConstants.CLOCK_TICK
                 else HapticFeedbackConstants.VIRTUAL_KEY,
             )
+            // The widget's update goes through AppWidgetManager, which any thread can use.
             "save" -> {
-                Store.writeState(this, msg.optString("state"))
-                Alarms.replace(this, msg.optJSONArray("alarms") ?: JSONArray())
-                msg.optJSONObject("widget")?.let { TodayWidget.save(this, it) }
+                val app = applicationContext
+                disk.execute {
+                    Store.writeState(app, msg.optString("state"))
+                    Alarms.replace(app, msg.optJSONArray("alarms") ?: JSONArray())
+                    msg.optJSONObject("widget")?.let { TodayWidget.save(app, it) }
+                }
             }
             "askNotifications" -> if (Build.VERSION.SDK_INT >= 33) askNotifications.launch(Manifest.permission.POST_NOTIFICATIONS)
             "openSettings" -> openSettingsFor(msg.optString("what"))

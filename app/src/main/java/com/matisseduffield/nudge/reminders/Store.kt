@@ -78,6 +78,11 @@ object Store {
             summary = json.optBoolean("summary"),
             loud = json.optBoolean("loud"),
             use24 = if (json.has("use24")) json.optBoolean("use24") else null,
+            items = json.optJSONArray("items")?.let { items ->
+                (0 until items.length()).mapNotNull { i ->
+                    items.optJSONArray(i)?.let { Counted(it.optString(0), it.optString(1), it.optString(2)) }
+                }
+            }.orEmpty(),
         )
     }.getOrNull()
 
@@ -85,6 +90,7 @@ object Store {
         .put("id", alarm.id).put("task", alarm.task).put("occ", alarm.occ).put("at", alarm.at.toString())
         .put("title", alarm.title).put("body", alarm.body).put("nag", alarm.nag).put("summary", alarm.summary).put("loud", alarm.loud)
         .apply { alarm.use24?.let { put("use24", it) } }
+        .apply { if (alarm.items.isNotEmpty()) put("items", JSONArray(alarm.items.map { JSONArray(listOf(it.task, it.occ, it.title)) })) }
 
     private fun parseAll(text: String?): List<Alarm> {
         val array = text?.let { runCatching { JSONArray(it) }.getOrNull() } ?: return emptyList()

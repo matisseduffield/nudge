@@ -367,8 +367,8 @@ test('dates and times read naturally', () => {
   assert.equal(L.timeText('00:15'), '12:15am');
   assert.equal(L.timeText('17:30', true), '17:30');
   assert.equal(L.repeatText({ every: 2, unit: 'week' }), 'Every 2 weeks');
-  assert.equal(L.reminderText({ before: 120 }, NOW), '2 hours before');
-  assert.equal(L.reminderText({ before: 0 }, NOW), 'At the time');
+  assert.equal(L.reminderText({ before: 120 }, NOW, false, '17:00'), '2 hours before');
+  assert.equal(L.reminderText({ before: 0 }, NOW, false, '17:00'), 'At the time');
 });
 
 test('a damaged save still opens', () => {
@@ -509,4 +509,59 @@ test('"on the 2nd floor" and "on the 4th of July" are not dates', () => {
   assert.deepEqual([q('Meet on the 2nd floor').title, q('Meet on the 2nd floor').due], ['Meet on the 2nd floor', null]);
   assert.deepEqual([q('Party on the 4th of July').title, q('Party on the 4th of July').due], ['Party on the 4th of July', null]);
   assert.equal(q('Pay on the 2nd').due, '2026-12-02');
+});
+
+test('a change to the date, time or reminders drops a snooze', () => {
+  const t = task({ due: '2026-11-06', time: '09:00', reminders: [{ before: 0 }], snooze: +new Date(2026, 10, 6, 11, 0) });
+  assert.equal(L.edited(t, { time: '15:00' }).snooze, null);
+  assert.equal(L.edited(t, { due: '2026-11-07' }).snooze, null);
+  assert.equal(L.edited(t, { reminders: [] }).snooze, null);
+  // Nothing about when it rings changed, so the snooze still stands.
+  assert.equal(L.edited(t, { title: 'New name', time: '09:00' }).snooze, t.snooze);
+  assert.equal(L.edited(t, { reminders: [{ before: 0 }] }).snooze, t.snooze);
+  // So the phone isn't left ringing the old snooze.
+  const moved = L.edited(t, { time: '15:00' });
+  assert.deepEqual(L.firings(moved, NOW).map(f => f.at), ['2026-11-06T15:00']);
+  assert.deepEqual(L.firings(L.edited(t, { reminders: [] }), NOW), []);
+});
+
+test('a reminder on a task with no time says when it rings', () => {
+  assert.equal(L.reminderText({ before: 0 }, NOW), '9am');
+  assert.equal(L.reminderText({ before: 60 }, NOW), '8am');
+  assert.equal(L.reminderText({ before: 30 }, NOW), '8:30am');
+  assert.equal(L.reminderText({ before: 60 }, NOW, true), '08:00');
+  assert.equal(L.reminderText({ before: 1440 }, NOW), '1 day before, 9am');
+  assert.equal(L.reminderText({ before: 10080 }, NOW), '7 days before, 9am');
+  assert.equal(L.reminderText({ before: 720 }, NOW), '1 day before, 9pm');
+  // And it is what the phone is given.
+  const t = task({ due: '2026-11-07', reminders: [{ before: 60 }, { before: 720 }] });
+  assert.deepEqual(L.firings(t, NOW).map(f => f.at), ['2026-11-07T08:00', '2026-11-06T21:00']);
+  // With a time, it counts back from it.
+  assert.equal(L.reminderText({ before: 60 }, NOW, false, '17:00'), '1 hour before');
+});
+
+test('search shows what is still to do first, then done, newest first', () => {
+  const tasks = [
+    task({ title: 'call old', due: '2026-10-01', done: 100 }), task({ title: 'call later', due: '2026-11-20' }),
+    task({ title: 'call recent', due: '2026-11-01', done: 300 }), task({ title: 'call soon', due: '2026-11-07' }),
+    task({ title: 'call nodate' }), task({ title: 'call gone', deleted: 5 }),
+  ];
+  assert.deepEqual(L.search(tasks, 'call').map(x => x.title), ['call soon', 'call later', 'call nodate', 'call recent', 'call old']);
+});
+
+test('a morning summary says which task dates it counts', () => {
+  const state = {
+    tasks: [
+      task({ id: 'late', title: 'Late', due: '2026-11-04' }),
+      task({ id: 'daily', title: 'Daily', due: '2026-11-06', repeat: { every: 1, unit: 'day' } }),
+      task({ id: 'weekly', title: 'Weekly', due: '2026-11-02', repeat: { every: 1, unit: 'week' } }),
+    ],
+    prefs: { summary: '08:00' }, lists: [],
+  };
+  const sum = L.schedule(state, NOW).find(x => x.id === 'summary|2026-11-07');
+  // On its day a repeating task counts for that day; overdue, for the day it was due.
+  assert.deepEqual(sum.items, [['late', '2026-11-04', 'Late'], ['daily', '2026-11-07', 'Daily'], ['weekly', '2026-11-02', 'Weekly']]);
+  assert.equal(sum.title, '3 tasks today');
+  assert.deepEqual(L.summaryText(['A']), { title: '1 task today', body: 'A' });
+  assert.deepEqual(L.summaryText(['A', 'B', 'C', 'D']), { title: '4 tasks today', body: 'A, B, C' });
 });

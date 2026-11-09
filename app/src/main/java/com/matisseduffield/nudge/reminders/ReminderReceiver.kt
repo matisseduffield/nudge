@@ -24,6 +24,7 @@ class ReminderReceiver : BroadcastReceiver() {
                 Alarms.use24Of(intent),
             )
             Alarms.ACTION_DISMISS -> Alarms.dismiss(context, task)
+            Alarms.ACTION_CATCH_UP -> Alarms.arm(context)
         }
     }
 }

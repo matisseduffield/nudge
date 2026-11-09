@@ -226,15 +226,37 @@
     $('view').scrollTop = 0;
   });
 
+  // Drawing again replaces the rows, and focus goes with them. It comes back to the
+  // row, or the one that took its place, and only if it was on a row to begin with.
+  function placeOf(r) {
+    const region = r?.closest('#view, #listBody, #findBody');
+    if (!region) return null;
+    const ids = [...region.querySelectorAll('.task')].map(x => x.dataset.id);
+    const i = ids.indexOf(r.dataset.id);
+    return { region, id: r.dataset.id, done: r.classList.contains('done'), next: [ids[i + 1], ids[i - 1]].filter(Boolean) };
+  }
+  // [same] says whether the row itself counts if it's still there, given whether it's done now.
+  function refocus(place, key, same = () => true) {
+    if (!place) return;
+    const find = id => place.region.querySelector(`.task[data-id="${CSS.escape(id)}"]`);
+    const here = find(place.id);
+    const r = here && same(here.classList.contains('done')) ? here : place.next.map(find).find(Boolean);
+    r?.querySelector(`[data-${key}]`)?.focus();
+  }
+
   // Ticks and rows work the same everywhere they're drawn.
   function toggle(id) {
     const before = task(id);
     if (!before) return;
     haptic();
-    if (before.done) { setTask(id, { done: null }); return render(); }
+    // A row that's moved to Done or back isn't where the list was going: the next one is.
+    const place = placeOf(document.activeElement?.closest('.task'));
+    const back = () => refocus(place, 'tick', done => done === place.done);
+    if (before.done) { setTask(id, { done: null }); render(); return back(); }
     const after = L.complete(before, now());
     state.tasks = state.tasks.map(t => (t.id === id ? after : t));
     commit();
+    back();
     say(after.done ? 'Done' : `Next: ${L.dayText(after.due, now())}`, () => { state.tasks = state.tasks.map(t => (t.id === id ? before : t)); commit(); });
   }
   document.addEventListener('click', e => {
@@ -268,7 +290,7 @@
     if (q.repeat) bits.push(L.repeatText(q.repeat));
     if (q.listName) bits.push(listOf(q.list)?.name || `New list: ${q.listName}`);
     if (q.pri) bits.push(q.pri === 2 ? 'Urgent' : 'High');
-    if (q.remind != null) bits.push(L.reminderText({ before: q.remind }, now()));
+    if (q.remind != null) bits.push(L.reminderText({ before: q.remind }, now(), state.prefs.use24, q.time));
     if (q.loud) bits.push('Rings like a call');
     return bits.join(' · ');
   }
@@ -285,16 +307,21 @@
     commit();
     return t;
   }
-  $('quickBox').addEventListener('input', () => {
+  function preview() {
     const text = previewText(L.parseQuick($('quickBox').value, now(), state.lists, { use24: state.prefs.use24 }));
     $('preview').hidden = !text;
     $('preview').textContent = text;
-  });
+  }
+  // Half typed, it's still there if the app is closed or reloaded.
+  $('quickBox').value = read('draft') || '';
+  if ($('quickBox').value) preview();
+  $('quickBox').addEventListener('input', () => { write('draft', $('quickBox').value); preview(); });
   $('quick').addEventListener('submit', e => {
     e.preventDefault();
     const t = addFrom($('quickBox').value);
     if (!t) return;
     $('quickBox').value = '';
+    write('draft', '');
     $('preview').hidden = true;
     // Show where it went, if that isn't on the tab in view.
     const here = tab === 'lists' || (tab === 'today' ? t.due && t.due <= L.iso(now()) : !t.due || t.due > L.iso(now()));
@@ -556,7 +583,7 @@
       }));
     }
     $('fReminders').replaceChildren(...t.reminders.map((r, i) => {
-      const text = L.reminderText(r, now(), state.prefs.use24);
+      const text = L.reminderText(r, now(), state.prefs.use24, t.time);
       const row = el('div', 'row');
       const b = el('button', 'row-x');
       b.type = 'button';
@@ -613,10 +640,10 @@
   }
   $('fNotes').addEventListener('input', fitNotes);
   const edit = change => {
+    const t = L.edited(task(editing), change);
     // Ringing like a call goes with the last reminder, or adding one later would bring it back unseen.
-    const t = { ...task(editing), ...change };
-    if (t.loud && !t.reminders.length) change = { ...change, loud: false };
-    setTask(editing, change);
+    if (t.loud && !t.reminders.length) t.loud = false;
+    setTask(editing, t);
     drawTaskExtras();
   };
   // Changes save as they're made, so there's no Save to miss.
@@ -625,7 +652,7 @@
   $('fDue').addEventListener('change', () => {
     const due = $('fDue').value || null;
     const t = task(editing);
-    const change = { due, snooze: null };
+    const change = { due };
     if (!due) {
       change.time = null;
       change.repeat = null;
@@ -730,11 +757,20 @@
   $('taskDelete').addEventListener('click', () => {
     const id = editing;
     setTask(id, { deleted: +now() });
-    $('taskPage').close();
-    render();
+    $('taskPage').close();   // which draws the screen again
     say('Deleted', () => { setTask(id, { deleted: null }); render(); });
   });
-  $('taskPage').addEventListener('close', () => { saveNow(); render(); });
+  $('taskPage').addEventListener('close', () => {
+    // Back to its row, unless focus has gone somewhere else, like the add box.
+    const a = document.activeElement;
+    const fromList = !a || a === document.body || $('taskPage').contains(a) || a.closest('.task');
+    const top = openDialog();
+    const region = top ? top.querySelector('#listBody, #findBody') : $('view');
+    const place = fromList ? placeOf(region?.querySelector(`.task[data-id="${CSS.escape(editing)}"]`)) : null;
+    saveNow();
+    render();
+    refocus(place, 'open');
+  });
 
   // ---- search ----
   function renderFind() {

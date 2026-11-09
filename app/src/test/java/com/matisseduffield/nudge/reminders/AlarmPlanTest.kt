@@ -167,6 +167,58 @@ class AlarmPlanTest {
         assertEquals("Mon 9 Nov, 3pm", AlarmPlan.alarmLine("Mon 9 Nov, 3pm", LocalTime.of(15, 0), false))
     }
 
+    private fun summary(day: String, vararg items: Counted) =
+        AlarmPlan.summaryText(items.map { it.title }).let { (title, body) ->
+            Alarm("summary|$day", "", "", now.plusDays(1), title, body, 0, summary = true, items = items.toList())
+        }
+
+    @Test fun doneTakesATaskOffTheMorningSummary() {
+        val sum = summary("2026-11-07", Counted("a", "2026-11-05", "Pay rent"), Counted("b", "2026-11-07", "Gym"), Counted("c", "2026-11-07", "Call mum"), Counted("d", "2026-11-07", "Bins"))
+        assertEquals("4 tasks today", sum.title)
+        assertEquals("Pay rent, Gym, Call mum", sum.body)
+        val after = AlarmPlan.afterDone(listOf(sum), "a", "2026-11-05").single()
+        assertEquals("3 tasks today", after.title)
+        assertEquals("Gym, Call mum, Bins", after.body)
+        assertEquals(listOf("b", "c", "d"), after.items.map { it.task })
+        assertEquals("1 task today", AlarmPlan.afterDone(AlarmPlan.afterDone(listOf(after), "b", "2026-11-07"), "c", "2026-11-07").single().title)
+    }
+
+    @Test fun anotherDateOfARepeatingTaskStaysCounted() {
+        // Ticking off today's date of a daily task leaves tomorrow's for tomorrow's summary.
+        val sum = summary("2026-11-07", Counted("daily", "2026-11-07", "Walk"))
+        assertEquals(listOf(sum), AlarmPlan.afterDone(listOf(sum), "daily", "2026-11-06"))
+    }
+
+    @Test fun aSummaryWithNothingLeftGoes() {
+        val sum = summary("2026-11-07", Counted("a", "2026-11-07", "Gym"))
+        val other = summary("2026-11-08", Counted("a", "2026-11-07", "Gym"), Counted("b", "2026-11-08", "Bins"))
+        val keepGoing = alarm("keep-going", "", "", now.plusDays(14), summary = true)
+        val left = AlarmPlan.afterDone(listOf(sum, other, keepGoing), "a", "2026-11-07")
+        assertEquals(listOf("summary|2026-11-08", "keep-going"), left.map { it.id })
+        assertEquals("1 task today", left.first().title)
+        assertEquals("Bins", left.first().body)
+    }
+
+    @Test fun theBackstopGoesOffWithTheSoonestAlarm() {
+        val list = listOf(alarm("later", "t", "", now.plusHours(2)), alarm("old", "t", "", now.minusMinutes(1)), alarm("soon", "u", "", now.plusMinutes(10)))
+        assertEquals(now.plusMinutes(10), AlarmPlan.backstop(list, now))
+        assertNull(AlarmPlan.backstop(listOf(alarm("old", "t", "", now.minusMinutes(1))), now))
+    }
+
+    @Test fun aReminderTheExactAlarmRangIsNotShownAgainByTheBackstop() {
+        val a = alarm("a", "t", "d", now)
+        val b = alarm("b", "u", "d", now.plusHours(1))
+        // The exact alarm rings first and takes it off the list...
+        val list = AlarmPlan.afterRinging(listOf(a, b), a, now)
+        // ...so when the backstop runs arm(), there's nothing missed to show.
+        assertTrue(AlarmPlan.missed(list, now.plusMinutes(1)).isEmpty())
+        assertEquals(now.plusHours(1), AlarmPlan.backstop(list, now.plusMinutes(1)))
+        // And with exact alarms gone, the backstop shows it, late, once.
+        val late = now.plusMinutes(20)
+        assertEquals(listOf("a"), AlarmPlan.missed(listOf(a, b), late).map { it.id })
+        assertTrue(AlarmPlan.missed(AlarmPlan.withoutPast(listOf(a, b), late), late).isEmpty())
+    }
+
     @Test fun theClockUsesPlainDigitsInAnyLanguage() {
         val was = Locale.getDefault()
         try {

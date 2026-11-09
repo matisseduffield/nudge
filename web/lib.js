@@ -11,7 +11,8 @@
   const parseDay = s => { const [y, m, d] = s.split('-').map(Number); return new Date(y, m - 1, d); };
   const addDays = (s, n) => { const d = parseDay(s); d.setDate(d.getDate() + n); return iso(d); };
   const daysBetween = (a, b) => Math.round((parseDay(b) - parseDay(a)) / DAY);
-  const atTime = (day, time) => { const d = parseDay(day); const [h, m] = (time || '09:00').split(':').map(Number); d.setHours(h, m, 0, 0); return d; };
+  const NO_TIME = '09:00';   // when a task with a date and no time rings
+  const atTime = (day, time) => { const d = parseDay(day); const [h, m] = (time || NO_TIME).split(':').map(Number); d.setHours(h, m, 0, 0); return d; };
   const local = d => `${iso(d)}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
 
   const WEEKDAYS = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
@@ -240,6 +241,14 @@
 
   const isOpen = t => !t.done && !t.deleted;
 
+  // A change made in the editor. A snooze put off one ringing, so a new date, time or
+  // set of reminders replaces it.
+  function edited(task, change) {
+    const out = { ...task, ...change };
+    const moved = ['due', 'time', 'reminders'].some(k => k in change && JSON.stringify(change[k]) !== JSON.stringify(task[k]));
+    return moved && out.snooze ? { ...out, snooze: null } : out;
+  }
+
   // What the phone's settings mean for reminders. askExact is on in builds where the
   // person has to allow exact alarms: there, without it, reminders are late, not off.
   function reminderWarning(health, askExact) {
@@ -329,6 +338,10 @@
     return nextDate(day, repeat);
   }
 
+  // What a morning summary says. AlarmPlan.summaryText says it the same way, for when
+  // the phone takes a task off the count.
+  const summaryText = names => ({ title: `${names.length} ${names.length === 1 ? 'task' : 'tasks'} today`, body: names.slice(0, 3).join(', ') });
+
   // The whole list the phone is given, soonest first. Two reminders can't share a
   // minute for one task, and a morning summary rides along for the next fortnight.
   function schedule(state, now) {
@@ -349,8 +362,10 @@
         const open = state.tasks.filter(t => isOpen(t) && t.due && (onDay(t, day) || t.due < day));
         lastSummary = local(when);
         if (!open.length) continue;
-        const names = open.slice(0, 3).map(t => t.title).join(', ');
-        out.push({ id: `summary|${day}`, task: '', occ: '', at: local(when), title: `${open.length} ${open.length === 1 ? 'task' : 'tasks'} today`, body: names, nag: 0, summary: true });
+        // Each with the date it's counted for, so Done on a notification can take it
+        // off the count before the page is next opened (AlarmPlan.afterDone).
+        const items = open.map(t => [t.id, onDay(t, day) ? day : t.due, t.title]);
+        out.push({ id: `summary|${day}`, task: '', occ: '', at: local(when), ...summaryText(items.map(i => i[2])), items, nag: 0, summary: true });
       }
     }
     out = out.sort((a, b) => (a.at < b.at ? -1 : 1)).slice(0, 800);
@@ -445,7 +460,9 @@
   function search(tasks, text) {
     const q = text.trim().toLowerCase();
     if (!q) return [];
-    return tasks.filter(t => !t.deleted && (t.title.toLowerCase().includes(q) || t.notes.toLowerCase().includes(q) || t.subs.some(s => s.title.toLowerCase().includes(q)))).sort(byDue);
+    const hits = tasks.filter(t => !t.deleted && (t.title.toLowerCase().includes(q) || t.notes.toLowerCase().includes(q) || t.subs.some(s => s.title.toLowerCase().includes(q))));
+    // What's still to do comes first. Done ones after, the latest first.
+    return [...hits.filter(t => !t.done).sort(byDue), ...hits.filter(t => t.done).sort((a, b) => b.done - a.done)];
   }
 
   function dayText(day, now) {
@@ -466,8 +483,18 @@
     return `${h % 12 || 12}${m ? `:${pad(m)}` : ''}${h < 12 ? 'am' : 'pm'}`;
   }
 
-  function reminderText(r, now, use24) {
+  // [time] is the task's. Without one there's no time to be before, so it says the
+  // clock time it really rings at.
+  function reminderText(r, now, use24, time) {
     if (r.at) { const d = new Date(r.at); return `${dayText(iso(d), now)}, ${timeText(`${pad(d.getHours())}:${pad(d.getMinutes())}`, use24)}`; }
+    if (!time) {
+      const [h, m] = NO_TIME.split(':').map(Number);
+      const mins = h * 60 + m - r.before;
+      const days = Math.max(0, Math.ceil(-mins / 1440));
+      const at = mins + days * 1440;
+      const clock = timeText(`${pad(Math.floor(at / 60))}:${pad(at % 60)}`, use24);
+      return days ? `${days} ${days === 1 ? 'day' : 'days'} before, ${clock}` : clock;
+    }
     if (r.before === 0) return 'At the time';
     if (r.before % 1440 === 0) return `${r.before / 1440} ${r.before === 1440 ? 'day' : 'days'} before`;
     if (r.before % 60 === 0) return `${r.before / 60} ${r.before === 60 ? 'hour' : 'hours'} before`;
@@ -503,7 +530,7 @@
     return { lists, tasks, prefs: { summary: null, defaultReminder: 0, use24: false, ...(s.prefs || {}) } };
   }
 
-  const lib = { reminderWarning, shouldAskExact, exactBlocker, loudBlocker, iso, parseDay, addDays, daysBetween, atTime, local, nextDate, repeatText, parseQuick, makeTask, newId, isOpen, complete, occurrences, firings, schedule, applyActions, today, upcoming, search, dayText, timeText, reminderText, cleanState, ensureRing, fitToDays, nagOf, LOUD_NAG, widgetItems, canMove, moveOverdue, doneToday, listOrder, tidy };
+  const lib = { edited, summaryText, reminderWarning, shouldAskExact, exactBlocker, loudBlocker, iso, parseDay, addDays, daysBetween, atTime, local, nextDate, repeatText, parseQuick, makeTask, newId, isOpen, complete, occurrences, firings, schedule, applyActions, today, upcoming, search, dayText, timeText, reminderText, cleanState, ensureRing, fitToDays, nagOf, LOUD_NAG, widgetItems, canMove, moveOverdue, doneToday, listOrder, tidy };
   if (typeof module === 'object' && module.exports) module.exports = lib;
   else root.NudgeLib = lib;
 })(this);

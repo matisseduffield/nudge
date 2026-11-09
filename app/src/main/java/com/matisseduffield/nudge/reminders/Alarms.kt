@@ -34,6 +34,8 @@ object Alarms {
     const val ACTION_DONE = "com.matisseduffield.nudge.DONE"
     const val ACTION_SNOOZE = "com.matisseduffield.nudge.SNOOZE"
     const val ACTION_DISMISS = "com.matisseduffield.nudge.DISMISS"
+    const val ACTION_CATCH_UP = "com.matisseduffield.nudge.CATCH_UP"
+    private const val BACKSTOP_CODE = AlarmPlan.MAX_ARMED   // after the slots' request codes
     const val EXTRA_MINUTES = "minutes"
     private const val EXTRA_USE24 = "use24"
     const val CHANNEL = "reminders"
@@ -62,6 +64,15 @@ object Alarms {
             .setData("nudge://alarm/$index".toUri())
             .putExtra(EXTRA_ID, id)
         return PendingIntent.getBroadcast(context, index, intent, PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
+    }
+
+    // Inexact, so Android keeps it when exact alarms are taken away: it runs arm() again,
+    // which shows anything missed and sets the rest as they now can be.
+    private fun backstop(context: Context): PendingIntent {
+        val intent = Intent(context, ReminderReceiver::class.java)
+            .setAction(ACTION_CATCH_UP)
+            .setData("nudge://catch-up".toUri())
+        return PendingIntent.getBroadcast(context, BACKSTOP_CODE, intent, PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
     }
 
     /** The page's new list. */
@@ -145,6 +156,12 @@ object Alarms {
             if (exact) manager.setExactAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, millis(alarm.at), intent)
             else manager.setAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, millis(alarm.at), intent)
         }
+        // Set every time, as exact alarms can be taken away with the app closed, and Android
+        // says nothing. It can't ring a reminder twice: whichever runs first takes the
+        // reminder off the list (ring, or missed above), all under [lock].
+        val catchUp = AlarmPlan.backstop(kept, now)
+        if (catchUp == null) manager.cancel(backstop(context))
+        else manager.setAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, millis(catchUp), backstop(context))
     }
 
     fun ring(context: Context, id: String?) = synchronized(lock) {
