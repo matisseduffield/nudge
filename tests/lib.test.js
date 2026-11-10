@@ -233,7 +233,14 @@ test('part of the day settles the hour', () => {
 test('quick add handles the awkward dates', () => {
   const saturday = new Date(2026, 10, 7, 10, 0);
   assert.equal(L.parseQuick('Standup every weekday', saturday, []).due, '2026-11-09');
-  assert.equal(L.parseQuick('Leap day 29 feb', new Date(2028, 2, 10), []).due, null);
+  // 29 Feb waits for the next leap year, and a date that never comes stays in the title.
+  const leap = L.parseQuick('Leap day 29 feb', new Date(2028, 2, 10), []);
+  assert.deepEqual([leap.due, leap.title], ['2032-02-29', 'Leap day']);
+  assert.equal(q('Birthday 29 feb').due, '2028-02-29');
+  assert.deepEqual(q('Birthday 29 feb yearly').repeat, { every: 1, unit: 'year', dom: 29 });
+  assert.equal(L.parseQuick('Leap day 29 feb', new Date(2028, 1, 29, 8, 0), []).due, '2028-02-29');
+  assert.deepEqual([q('Nothing 30 feb').due, q('Nothing 30 feb').title], [null, 'Nothing 30 feb']);
+  assert.equal(q('Dentist 14 feb').due, '2027-02-14');
 });
 
 test('a reminder always has a date to count back from', () => {
@@ -583,4 +590,93 @@ test('a morning summary lists only its first few tasks for the phone, and counts
 test('moving overdue tasks to today drops their snoozes', () => {
   const t = task({ due: '2026-11-02', snooze: +new Date(2026, 10, 6, 11, 0) });
   assert.equal(L.moveOverdue([t], NOW)[0].snooze, null);
+});
+
+// Tue 10 Nov 2026, 2:30pm
+const parsed = (text, now = new Date(2026, 10, 10, 14, 30)) => { const r = L.parseQuick(text, now, []); return [r.title, r.due, r.time]; };
+
+test('midnight tonight is the start of tomorrow, not noon', () => {
+  assert.deepEqual(parsed('Call mum tonight at midnight'), ['Call mum', '2026-11-11', '00:00']);
+  assert.deepEqual(parsed('Call 12am tonight'), ['Call', '2026-11-11', '00:00']);
+  assert.deepEqual(parsed('Call tonight 12:30am'), ['Call', '2026-11-11', '00:30']);
+  assert.deepEqual(parsed('Call tonight at 12'), ['Call', '2026-11-11', '00:00']);
+  // Without "tonight", twelve and midnight read as they always did.
+  assert.deepEqual(parsed('Lunch at noon'), ['Lunch', '2026-11-11', '12:00']);
+  assert.deepEqual(parsed('Call tonight at 9'), ['Call', '2026-11-10', '21:00']);
+  assert.deepEqual(parsed('Party at midnight'), ['Party', '2026-11-11', '00:00']);
+});
+
+test('a bare time counts right after a part of the day', () => {
+  assert.deepEqual(parsed('Movie tonight 7:30'), ['Movie', '2026-11-10', '19:30']);
+  assert.deepEqual(parsed('Run tomorrow morning 8:15'), ['Run', '2026-11-11', '08:15']);
+  assert.deepEqual(parsed('Walk this evening 7:30'), ['Walk', '2026-11-10', '19:30']);
+  // Anywhere else it's still part of the title.
+  assert.deepEqual(parsed('Read John 3:16'), ['Read John 3:16', null, null]);
+  assert.deepEqual(parsed('Read John 3:16 tonight'), ['Read John 3:16', '2026-11-10', '20:00']);
+  assert.deepEqual(parsed('Good morning 7:30 crew'), ['Good morning 7:30 crew', null, null]);
+});
+
+test('tonight for a time already gone leaves the time out', () => {
+  const late = new Date(2026, 10, 10, 23, 50);
+  assert.deepEqual(parsed('Bins tonight', late), ['Bins', '2026-11-10', null]);
+  assert.deepEqual(parsed('Movie tonight at 7', late), ['Movie', '2026-11-10', null]);
+  assert.deepEqual(parsed('Call tonight at midnight', late), ['Call', '2026-11-11', '00:00']);
+  assert.deepEqual(parsed('Bins tonight'), ['Bins', '2026-11-10', '20:00']);
+});
+
+test('every morning or night repeats daily', () => {
+  const r = text => { const p = L.parseQuick(text, new Date(2026, 10, 10, 14, 30), []); return [p.title, p.time, p.repeat]; };
+  assert.deepEqual(r('Meds every morning'), ['Meds', '09:00', { every: 1, unit: 'day' }]);
+  assert.deepEqual(r('Meds every afternoon'), ['Meds', '15:00', { every: 1, unit: 'day' }]);
+  assert.deepEqual(r('Meds every evening'), ['Meds', '18:00', { every: 1, unit: 'day' }]);
+  assert.deepEqual(r('Feed cat every night'), ['Feed cat', '20:00', { every: 1, unit: 'day' }]);
+  assert.deepEqual(r('Feed cat every night 9pm'), ['Feed cat', '21:00', { every: 1, unit: 'day' }]);
+  assert.deepEqual(r('Shift mon-fri 9am'), ['Shift', '09:00', { every: 1, unit: 'weekdays' }]);
+  assert.deepEqual(r('Shift every mon-fri'), ['Shift', null, { every: 1, unit: 'weekdays' }]);
+  // In the middle of a title the words stay.
+  assert.deepEqual(r('Every morning routine checklist'), ['Every morning routine checklist', null, null]);
+  assert.deepEqual(r('Every night counts poster'), ['Every night counts poster', null, null]);
+  assert.deepEqual(r('Email mon-fri schedule to Bob'), ['Email mon-fri schedule to Bob', null, null]);
+});
+
+test('night, this evening and in a week are read', () => {
+  assert.deepEqual(parsed('Call Bob tomorrow night'), ['Call Bob', '2026-11-11', '20:00']);
+  assert.deepEqual(parsed('Drinks friday night'), ['Drinks', '2026-11-13', '20:00']);
+  assert.deepEqual(parsed('Drinks friday night at 9'), ['Drinks', '2026-11-13', '21:00']);
+  assert.deepEqual(parsed('Call Bob this evening'), ['Call Bob', '2026-11-10', '18:00']);
+  assert.deepEqual(parsed('Call Bob this afternoon'), ['Call Bob', '2026-11-10', '15:00']);
+  assert.deepEqual(parsed('Reply in a week'), ['Reply', '2026-11-17', null]);
+  assert.deepEqual(parsed('Reply in a month'), ['Reply', '2026-12-10', null]);
+  assert.deepEqual(parsed('Reply in an hour'), ['Reply', '2026-11-10', '15:30']);
+  // Titles that only happen to hold the words keep them.
+  const plain = [
+    'Buy night cream', 'Watch this is us', 'Date night ideas', 'Plan movie night', 'Date night',
+    'Night shift roster', 'Read a week in winter', 'Book in a week off', 'Fix this bug',
+    'Buy this evening dress', 'Read this morning news', 'Stay the night at mums', 'Book a table',
+    'Good morning email',
+  ];
+  for (const title of plain) assert.deepEqual(parsed(title), [title, null, null]);
+});
+
+test('a snooze rings on the minute and is not sent again once it has', () => {
+  const until = +new Date(2026, 10, 6, 10, 17, 23);
+  const t = task({ due: '2026-11-06', reminders: [], snooze: until });
+  assert.deepEqual(L.firings(t, new Date(2026, 10, 6, 10, 16, 59)).map(f => f.at), ['2026-11-06T10:17']);
+  assert.deepEqual(L.firings(t, new Date(2026, 10, 6, 10, 17, 0)), []);
+  assert.deepEqual(L.firings(t, new Date(2026, 10, 6, 10, 17, 10)), []);
+});
+
+test('a damaged repeat cannot hang the app', () => {
+  const fix = repeat => L.cleanState({ tasks: [{ id: 'a', title: 'x', due: '2026-11-06', repeat }] }).tasks[0];
+  assert.deepEqual(fix({ every: -2, unit: 'day' }).repeat, { every: 1, unit: 'day' });
+  assert.deepEqual(fix({ every: 2.7, unit: 'week' }).repeat, { every: 2, unit: 'week' });
+  assert.deepEqual(fix({ every: 'x', unit: 'month', dom: -4 }).repeat, { every: 1, unit: 'month' });
+  assert.deepEqual(fix({ every: 1, unit: 'days', days: [9, 'mon', 3, 3, 1.5] }).repeat, { every: 1, unit: 'days', days: [3] });
+  assert.deepEqual(fix({ every: 1, unit: 'days', days: [9, 'mon'] }).repeat, { every: 1, unit: 'week' });
+  assert.deepEqual(fix({ every: 1, unit: 'days' }).repeat, { every: 1, unit: 'week' });
+  const whole = { every: 3, unit: 'year', dom: 29, until: '2030-01-01' };
+  assert.deepEqual(fix(whole).repeat, whole);
+  assert.equal(L.complete(fix({ every: -2, unit: 'day' }), NOW).due, '2026-11-07');
+  const bad = [fix({ every: 1, unit: 'days', days: [9] }), fix({ every: -1, unit: 'week' })];
+  assert.doesNotThrow(() => L.schedule({ tasks: bad, prefs: {} }, NOW));
 });

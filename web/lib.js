@@ -99,16 +99,26 @@
 
     // Repeats that say "every" are clear anywhere. "Weekly" alone only counts at the
     // end of the line, later on, so "Write weekly report" stays a title.
-    let onDay = null, onDays = null;
+    let onDay = null, onDays = null, everyPart = null;
+    // At the end of the line, or with only a time after it: where the newer, looser
+    // phrases have to sit, so a title that happens to hold their words keeps them.
+    const TIME_END = '(?=\\s*$|\\s+(?:at\\s+)?\\d{1,2}(?:[:.]\\d{2})?\\s*(?:am|pm)?\\s*$)';
+    // A time written bare straight after a part of the day ("tonight 7:30"). It only
+    // comes out of the line further down, once the part of the day is certain.
+    let bare = t.match(/(?<=\s(?:tonight|morning|afternoon|evening|night))\s+(\d{1,2}):(\d{2})(?=\s)(?!\s*(?:am|pm)\b)/i);
+    if (bare && (Number(bare[1]) > 23 || Number(bare[2]) > 59)) bare = null;
     const dayName = `(?:${WEEKDAY})\\b`;
-    take(new RegExp(`\\severy\\s+(${dayName}(?:\\s*(?:,|and|&)\\s*${dayName})+)`, 'i'), m => {
-      onDays = [...new Set(m[1].toLowerCase().split(/\s*(?:,|and|&)\s*/).map(n => NAMES[n.trim()]))];
-      out.repeat = { every: 1, unit: 'days', days: onDays };
-    })
+    // "Mon-fri" goes first, or "every mon" would take half of it.
+    take(new RegExp(`\\s(?:every\\s+)?mon(?:day)?\\s*[-–]\\s*fri(?:day)?${TIME_END}`, 'i'), () => { out.repeat = { every: 1, unit: 'weekdays' }; })
+      || take(new RegExp(`\\severy\\s+(${dayName}(?:\\s*(?:,|and|&)\\s*${dayName})+)`, 'i'), m => {
+        onDays = [...new Set(m[1].toLowerCase().split(/\s*(?:,|and|&)\s*/).map(n => NAMES[n.trim()]))];
+        out.repeat = { every: 1, unit: 'days', days: onDays };
+      })
       || take(new RegExp(`\\severy\\s+(${WEEKDAY})\\b`, 'i'), m => { out.repeat = { every: 1, unit: 'week' }; onDay = NAMES[m[1].toLowerCase()]; })
       || take(/\severy\s+(\d+)\s+(day|week|month|year)s?\b/i, m => { out.repeat = { every: Number(m[1]), unit: m[2].toLowerCase() }; })
       || take(/\severy\s+other\s+(day|week|month|year)\b/i, m => { out.repeat = { every: 2, unit: m[1].toLowerCase() }; })
       || take(/\severy\s+weekday\b/i, () => { out.repeat = { every: 1, unit: 'weekdays' }; })
+      || take(new RegExp(`\\severy\\s+(morning|afternoon|evening|night)${TIME_END}`, 'i'), m => { everyPart = m[1].toLowerCase(); out.repeat = { every: 1, unit: 'day' }; })
       || take(/\severy\s+(day|week|month|year)\b/i, m => { out.repeat = { every: 1, unit: m[1].toLowerCase() }; });
     // A repeat word right at the end comes off now, so a date or time before it ("14 Feb
     // yearly") is at the end of the line too. One before a date is taken further down.
@@ -122,17 +132,27 @@
     repeatWord();
 
     // Part of the day, which also settles "at 9" one way or the other.
-    let part = null, tonight = false;
-    take(new RegExp(`\\stonight${WHOLE}`, 'i'), () => { part = 'evening'; tonight = true; })
+    let part = everyPart, tonight = false;
+    const withBare = t;
+    if (bare) t = t.replace(bare[0], ' ');
+    part
+      || take(new RegExp(`\\stonight${WHOLE}`, 'i'), () => { part = 'evening'; tonight = true; })
       || take(/\sin the\s+(morning|afternoon|evening)\b/i, m => { part = m[1].toLowerCase(); })
-      || take(new RegExp(`\\s(morning|afternoon|evening)${END}`, 'i'), m => { part = m[1].toLowerCase(); });
+      || take(new RegExp(`\\s(?:this\\s+)?(morning|afternoon|evening)${END}`, 'i'), m => { part = m[1].toLowerCase(); })
+      || take(new RegExp(`\\sthis\\s+(morning|afternoon|evening)${TIME_END}`, 'i'), m => { part = m[1].toLowerCase(); })
+      // "Night" is an ordinary word, so it needs a day right before it: "tomorrow night".
+      || take(new RegExp(`(?<=\\s(?:today|tomorrow|tmrw|tmr|${WEEKDAY}))\\s+night${TIME_END}`, 'i'), () => { part = 'night'; });
+    // No part of the day after all, so the time stays in the title.
+    if (bare && !part) { t = withBare; bare = null; }
 
     // Times.
+    let twelve = false;   // a 12 with no am or pm, which at night is midnight
     const clock = (h, m, half) => {
       let hour = Number(h);
       if (hour > 23 || Number(m || 0) > 59 || (half && hour > 12)) return false;
       if (half) hour = (hour % 12) + (half.toLowerCase() === 'pm' ? 12 : 0);
       out.time = `${pad(hour)}:${pad(Number(m || 0))}`;
+      twelve = hour === 12 && !half;
       return true;
     };
     const DATE_NEXT = `(?=\\s*$|\\s+(?:today|tomorrow|tmrw|tmr|on\\s|next\\s|in\\s+\\d|${LONG_DAY}|${SHORT_DAY}))`;
@@ -140,11 +160,15 @@
     // Someone on the 24-hour clock writes what they mean.
     const guess = (h, m) => { const n = Number(h); return clock(!part && !options.use24 && n >= 1 && n <= 7 ? n + 12 : n, m); };
     // "In 20 min", "in 2 hours": that clock time, today or past midnight.
-    take(/\sin\s+(\d{1,3})\s*(mins?|minutes?|hrs?|hours?)\b/i, m => {
-      const at = new Date(+now + Number(m[1]) * (m[2][0].toLowerCase() === 'h' ? 60 : 1) * 60000);
+    const inMinutes = n => {
+      const at = new Date(+now + n * 60000);
       out.time = `${pad(at.getHours())}:${pad(at.getMinutes())}`;
       out.due = iso(at);
-    })
+    };
+    let relative = false;   // "in 20 min" is already an exact moment
+    (bare && clock(bare[1], bare[2]))
+      || take(/\sin\s+(\d{1,3})\s*(mins?|minutes?|hrs?|hours?)\b/i, m => { relative = true; inMinutes(Number(m[1]) * (m[2][0].toLowerCase() === 'h' ? 60 : 1)); })
+      || take(new RegExp(`\\sin\\s+an?\\s+(hour|hr|minute|min)${END}`, 'i'), m => { relative = true; inMinutes(m[1][0].toLowerCase() === 'h' ? 60 : 1); })
       || take(/\s(?:at\s+)?(\d{1,2})(?:[:.](\d{2}))?\s*(am|pm)\b/i, m => clock(m[1], m[2], m[3]))
       || take(/\sat\s+(\d{1,2}):(\d{2})\b/, m => guess(m[1], m[2]))
       // Two-digit hours only, so "Read John 3:16" stays a title.
@@ -155,23 +179,36 @@
       })
       || take(/\s(?:at\s+)?noon\b/i, () => { out.time = '12:00'; })
       || take(/\s(?:at\s+)?midnight\b/i, () => { out.time = '00:00'; });
-    if (part && !out.time) out.time = tonight ? '20:00' : { morning: '09:00', afternoon: '15:00', evening: '18:00' }[part];
-    else if (part && part !== 'morning' && Number(out.time.slice(0, 2)) < 12) out.time = `${pad(Number(out.time.slice(0, 2)) + 12)}${out.time.slice(2)}`;
+    // Midnight tonight is the start of tomorrow, and stays 00:xx rather than turning into noon.
+    let pastMidnight = false;
+    if (part && !out.time) {
+      out.time = tonight ? '20:00' : { morning: '09:00', afternoon: '15:00', evening: '18:00', night: '20:00' }[part];
+    } else if (part && part !== 'morning' && !relative) {
+      const hour = Number(out.time.slice(0, 2));
+      if (hour >= 1 && hour < 12) out.time = `${pad(hour + 12)}${out.time.slice(2)}`;
+      else if (hour === 12 && twelve && (tonight || part === 'night')) out.time = `00${out.time.slice(2)}`;
+      pastMidnight = tonight && out.time.startsWith('00');
+    }
+    // "Tonight" for a time that has gone by: no time is better than one that never rings.
+    if (tonight && out.time && !relative && !pastMidnight && atTime(today, out.time) <= now) out.time = null;
 
     // Dates.
     const dayOfYear = (d, mo) => {
-      let when = new Date(now.getFullYear(), mo, d);
-      if (when.getMonth() !== mo) return false;
-      if (iso(when) < today) when = new Date(now.getFullYear() + 1, mo, d);
-      if (when.getMonth() !== mo) return false;   // 29 Feb, in a year without one
-      out.due = iso(when);
-      return true;
+      for (let y = now.getFullYear(); y <= now.getFullYear() + 8; y++) {
+        const when = new Date(y, mo, d);
+        if (when.getMonth() !== mo) {
+          if (mo === 1 && d === 29) continue;   // 29 Feb waits for the next leap year
+          return false;
+        }
+        if (iso(when) >= today) { out.due = iso(when); return true; }
+      }
+      return false;
     };
     const weekday = m => {
       const next = nextWeekday(today, NAMES[m[2].toLowerCase()]);
       out.due = m[1] && daysBetween(today, next) < 7 ? addDays(next, 7) : next;
     };
-    if (tonight) out.due = today;
+    if (tonight && !relative) out.due = pastMidnight ? addDays(today, 1) : today;
     take(new RegExp(`\\stoday${WHOLE}`, 'i'), () => { out.due = today; })
       || take(new RegExp(`\\syesterday${WHOLE}`, 'i'), () => { out.due = addDays(today, -1); })
       || take(new RegExp(`\\s(?:the\\s+)?day after tomorrow${WHOLE}`, 'i'), () => { out.due = addDays(today, 2); })
@@ -181,6 +218,10 @@
       || take(/\sin\s+(\d+)\s+(day|week|month)s?\b/i, m => {
         const n = Number(m[1]), unit = m[2].toLowerCase();
         out.due = unit === 'month' ? addMonths(today, n) : addDays(today, n * (unit === 'week' ? 7 : 1));
+      })
+      || take(new RegExp(`\\sin\\s+an?\\s+(day|week|month)${END}`, 'i'), m => {
+        const unit = m[1].toLowerCase();
+        out.due = unit === 'month' ? addMonths(today, 1) : addDays(today, unit === 'week' ? 7 : 1);
       })
       // Sat and sun are ordinary words, so short names need "on" or the end of the line.
       || take(new RegExp(`\\s(?:on\\s+)?(next\\s+)?(${LONG_DAY})${WHOLE}`, 'i'), weekday)
@@ -325,7 +366,8 @@
       for (const r of task.reminders) if (r.before != null) add(ringTime(occ, task.time, r.before), occ);
     }
     for (const r of task.reminders) if (r.at) add(new Date(r.at), task.due || '');
-    if (task.snooze) add(new Date(task.snooze), task.due || '');
+    // To the minute, as the alarm is written, so one that has just rung isn't sent again.
+    if (task.snooze) add(new Date(Math.floor(task.snooze / 6e4) * 6e4), task.due || '');
     return out;
   }
 
@@ -521,6 +563,19 @@
     const hm = v => (typeof v === 'string' && /^\d{2}:\d{2}$/.test(v) ? v : null);
     const stamp = v => (Number.isFinite(v) ? v : null);
     const units = ['day', 'week', 'month', 'year', 'weekdays', 'days'];
+    // A repeat has to move forward, or working out the next date never ends.
+    const repeatOf = r => {
+      if (!r || !units.includes(r.unit)) return null;
+      const out = { ...r };
+      if ('every' in out) out.every = Number.isFinite(out.every) && out.every >= 1 ? Math.floor(out.every) : 1;
+      if ('dom' in out && !(Number.isInteger(out.dom) && out.dom >= 1 && out.dom <= 31)) delete out.dom;
+      if (out.unit === 'days') {
+        out.days = [...new Set((Array.isArray(out.days) ? out.days : []).filter(d => Number.isInteger(d) && d >= 0 && d <= 6))];
+        // No days left: it has been repeating on its due date's weekday, so it's a weekly one.
+        if (!out.days.length) return { every: 1, unit: 'week' };
+      }
+      return out;
+    };
     const lists = Array.isArray(s.lists) ? s.lists.filter(l => l && l.id && typeof l.name === 'string') : [];
     const tasks = (Array.isArray(s.tasks) ? s.tasks : []).filter(t => t && t.id && typeof t.title === 'string').map(t => ({
       ...t,
@@ -529,7 +584,7 @@
       due: day(t.due),
       time: day(t.due) ? hm(t.time) : null,
       pri: [1, 2].includes(t.pri) ? t.pri : 0,
-      repeat: day(t.due) && t.repeat && units.includes(t.repeat.unit) ? t.repeat : null,
+      repeat: day(t.due) ? repeatOf(t.repeat) : null,
       nag: Number.isFinite(t.nag) ? t.nag : 0,
       loud: t.loud === true,
       done: stamp(t.done),

@@ -27,6 +27,7 @@ import org.json.JSONObject
 import java.time.LocalDate
 import java.time.LocalDateTime
 import java.time.ZoneId
+import java.time.temporal.ChronoUnit
 
 /** Rings reminders with AlarmManager, whether or not the app is open. */
 object Alarms {
@@ -47,6 +48,8 @@ object Alarms {
     private const val LOUD_NAG = 5
     private const val SUMMARY_CHANNEL = "summary"
     private const val SUMMARY_ID = 1
+    private const val KEEP_GOING_ID = 3   // its own, so a morning summary doesn't replace it
+    private const val KEEP_GOING = "keep-going"   // the page's id for the notice to open the app
     private val lock = Any()
     private const val UNKNOWN = "?"
 
@@ -188,7 +191,8 @@ object Alarms {
 
     /** [rungNag] is the nudging it rang with, for before the phone is first unlocked, when the tasks can't be read. */
     fun snooze(context: Context, task: String, occ: String, title: String, body: String, minutes: Long, loud: Boolean = false, rungNag: Int = 0, use24: Boolean? = null) {
-        val until = LocalDateTime.now().plusMinutes(minutes)
+        // To the minute, as the page writes its alarms, so the two agree on when it rings.
+        val until = LocalDateTime.now().plusMinutes(minutes).truncatedTo(ChronoUnit.MINUTES)
         val nag = if (Store.unlocked(context)) {
             // Finished in the app since it rang: there's nothing to snooze.
             val saved = openTasks(context)[task]
@@ -338,7 +342,7 @@ object Alarms {
             .addExtras(Bundle().apply { putString(EXTRA_OCC, alarm.occ) })
         val manager = context.getSystemService(NotificationManager::class.java)
         if (alarm.summary) {
-            manager.notify(SUMMARY_ID, builder.build())
+            manager.notify(if (alarm.id == KEEP_GOING) KEEP_GOING_ID else SUMMARY_ID, builder.build())
             return
         }
         builder
