@@ -14,6 +14,7 @@ enum App {
     )
 
     private static let taps = ReminderTaps()
+    private static let edge = EdgeBack()
     /// The page has said hello and can take messages.
     private static var ready = false
     /// A reminder was tapped before the page was up: the task to open once it is.
@@ -35,7 +36,12 @@ enum App {
                 ready = false
                 return false
             case "save":
-                if let state = msg["state"] as? String { Reminders.keep(state: state) }
+                if let state = msg["state"] as? String {
+                    Reminders.keep(state: state)
+                    // Taps handed over are in it now, and finished tasks stop showing.
+                    Reminders.heard()
+                    Reminders.clearShown(state: state)
+                }
                 Reminders.plan(msg["alarms"] as? [[String: Any]] ?? [])
                 return true
             case "askNotifications":
@@ -78,6 +84,11 @@ enum App {
             // tapped, the last plan is topped up as it stands.
             if !sendActions() { Reminders.planAgain() }
         }
+        // A swipe in from the left edge goes back a page, as the Back button does.
+        let swipe = UIScreenEdgePanGestureRecognizer(target: edge, action: #selector(EdgeBack.swiped(_:)))
+        swipe.edges = .left
+        swipe.delegate = edge
+        shell.view.addGestureRecognizer(swipe)
     }
 
     static func opened(link: URL) {}
@@ -126,5 +137,21 @@ enum App {
                 "exact": true, "battery": true, "fullScreen": true, "overlay": true,
             ])
         }
+    }
+}
+
+/// The swipe from the left edge. It runs alongside scrolling rather than waiting
+/// on it, and only a swipe that ends well across the screen counts.
+@MainActor
+final class EdgeBack: NSObject, UIGestureRecognizerDelegate {
+    @objc func swiped(_ pan: UIScreenEdgePanGestureRecognizer) {
+        guard pan.state == .ended else { return }
+        let moved = pan.translation(in: pan.view)
+        guard moved.x > 60, abs(moved.y) < moved.x else { return }
+        Shell.current?.run("if (window.nudgeBack) window.nudgeBack();")
+    }
+
+    func gestureRecognizer(_ gestureRecognizer: UIGestureRecognizer, shouldRecognizeSimultaneouslyWith otherGestureRecognizer: UIGestureRecognizer) -> Bool {
+        true
     }
 }

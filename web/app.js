@@ -70,7 +70,9 @@
     $('toast').hidden = false;
     // Over a page, the footer can't be reached, so the message goes on the page.
     const page = openDialog();
-    if (page) page.append($('toast')); else document.querySelector('footer').prepend($('toast'));
+    // On iPhone it sits above the page's add box, clear of the home bar.
+    const quick = ios && page ? page.querySelector('.page-quick') : null;
+    if (quick) quick.before($('toast')); else if (page) page.append($('toast')); else document.querySelector('footer').prepend($('toast'));
     toastTimer = setTimeout(() => { $('toast').hidden = true; undo = null; }, 5000);
   }
   $('toastUndo').addEventListener('click', () => {
@@ -94,7 +96,8 @@
       s.innerHTML = ICON.bell;
       if (t.loud) s.append('Rings like a call');
       else if (t.nag) s.append('Keeps nudging');
-      else if (t.reminders.length > 1) s.append(String(t.reminders.length));
+      else if (t.reminders.length > 1) s.append(String(t.reminders.length), el('span', 'vh', 'reminders'));
+      else s.append(el('span', 'vh', 'Reminder'));
       sub.append(s);
     }
     if (t.subs.length) sub.append(el('span', '', `${t.subs.filter(x => x.done).length}/${t.subs.length}`));
@@ -777,13 +780,17 @@
     if (!t.due) { change.due = L.iso(now()); $('fDue').value = change.due; }
     edit(change);
   });
-  $('fCustom').addEventListener('change', () => {
+  // An iPhone's picker says it has changed at every touch of it, so there the
+  // reminder is added once the picker is put away.
+  $('fCustom').addEventListener(ios ? 'blur' : 'change', () => {
     const at = $('fCustom').value;
-    if (!at) return;
     const t = task(editing);
+    if (!at || !t) return;
     $('fCustom').value = '';
     $('fCustomRow').hidden = true;
     edit({ reminders: [...t.reminders, { at }] });
+    // Put away by leaving the task: its row is already drawn, so it's drawn again.
+    if (!$('taskPage').open) render();
   });
   $('fReminders').addEventListener('click', e => {
     const b = e.target.closest('[data-drop-reminder]');
@@ -938,7 +945,18 @@
 
   // ---- Android app bridge (absent in a browser) ----
   const stack = [];
-  function show(id) { if (!$(id).open) { $(id).showModal(); stack.push($(id)); } tellBack(); }
+  // A dialog opens with its first button focused, which a phone then rings in
+  // the accent colour as if a keyboard had found it. On touch the page itself
+  // takes the focus instead.
+  const touch = matchMedia('(hover: none)');
+  function show(id) {
+    const d = $(id);
+    if (!d.open) {
+      d.showModal(); stack.push(d);
+      if (touch.matches) { d.tabIndex = -1; d.focus({ preventScroll: true }); }
+    }
+    tellBack();
+  }
   // The one on top, whichever order they sit in the page.
   function openDialog() {
     while (stack.length && !stack[stack.length - 1].open) stack.pop();

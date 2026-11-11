@@ -16,7 +16,14 @@ enum Reminders {
     private static let category = "task"
     private static let lock = NSLock()
     /// The page writes its dates in this calendar, whatever the phone is set to.
-    private static let calendar = Calendar(identifier: .gregorian)
+    /// Made each time, so it follows the phone into a new time zone.
+    private static var calendar: Calendar {
+        var out = Calendar(identifier: .gregorian)
+        out.timeZone = .autoupdatingCurrent
+        return out
+    }
+    /// How many of the taps waiting in actions.json the page has been handed.
+    private static var handed = 0
 
     // MARK: Files
 
@@ -54,13 +61,28 @@ enum Reminders {
         return text
     }
 
-    /// What was tapped on reminders since the page last heard. Handing them over empties the list.
+    /// What was tapped on reminders since the page last saved. They stay on file
+    /// until it does, so none is lost if the page ends first.
     static func takeActions() -> [[String: Any]] {
         lock.lock()
         defer { lock.unlock() }
         let actions = rows("actions.json")
-        if !actions.isEmpty { try? FileManager.default.removeItem(at: file("actions.json")) }
+        handed = actions.count
         return actions
+    }
+
+    /// The page has saved: what it was handed is in its tasks now, and can go.
+    static func heard() {
+        lock.lock()
+        defer { lock.unlock() }
+        guard handed > 0 else { return }
+        let left = Array(rows("actions.json").dropFirst(handed))
+        handed = 0
+        if left.isEmpty {
+            try? FileManager.default.removeItem(at: file("actions.json"))
+        } else {
+            write(left, "actions.json")
+        }
     }
 
     private static func queue(_ action: [String: Any]) {
@@ -123,6 +145,43 @@ enum Reminders {
         return UNNotificationRequest(identifier: id, content: content, trigger: UNCalendarNotificationTrigger(dateMatching: at, repeats: false))
     }
 
+    /// A time the page has stamped on a task, as against null, false or 0.
+    private static func isSet(_ value: Any?) -> Bool {
+        guard let value = value, !(value is NSNull) else { return false }
+        if let number = value as? NSNumber { return number.boolValue }
+        return true
+    }
+
+    /// Reminders still showing for tasks that are done or gone come down.
+    static func clearShown(state: String) {
+        guard let data = state.data(using: .utf8),
+              let saved = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any],
+              let tasks = saved["tasks"] as? [[String: Any]] else { return }
+        // Each open task, with the date it has reached if it repeats.
+        var reached: [String: String] = [:]
+        for task in tasks {
+            guard let id = task["id"] as? String, !isSet(task["done"]), !isSet(task["deleted"]) else { continue }
+            let repeats = task["repeat"] is [String: Any]
+            reached[id] = repeats ? (task["due"] as? String ?? "") : ""
+        }
+        let live = reached
+        UNUserNotificationCenter.current().getDeliveredNotifications { shown in
+            var ids: [String] = []
+            for note in shown {
+                let info = note.request.content.userInfo
+                guard let task = info["task"] as? String, !task.isEmpty else { continue }
+                let occ = info["occ"] as? String ?? ""
+                if let due = live[task] {
+                    // A repeating task ticked past this date.
+                    if !due.isEmpty, !occ.isEmpty, occ < due { ids.append(note.request.identifier) }
+                } else {
+                    ids.append(note.request.identifier)
+                }
+            }
+            if !ids.isEmpty { UNUserNotificationCenter.current().removeDeliveredNotifications(withIdentifiers: ids) }
+        }
+    }
+
     /// Swaps everything waiting for the soonest of these.
     static func plan(_ alarms: [[String: Any]]) {
         lock.lock()
@@ -172,7 +231,8 @@ enum Reminders {
                 id: id, alarm: alarm["id"] as? String ?? id, at: at, task: task, occ: occ,
                 title: alarm["title"] as? String ?? "", body: alarm["body"] as? String ?? ""
             ))
-            if !task.isEmpty { index.append(["id": id, "task": task, "occ": occ]) }
+            // Summaries too, so Done on a reminder knows which of them are set.
+            index.append(["id": id, "task": task, "occ": occ])
         }
 
         // The soonest reminders are certain of a place. What's left goes to the
@@ -196,8 +256,9 @@ enum Reminders {
             add(ring.alarm["id"] as? String ?? "", ring.at, ring.alarm)
         }
         if more, let last = fit.last {
-            let notice: [String: Any] = ["id": "keep-going", "title": "Open Nudge", "body": "Open the app to keep your reminders going."]
-            add("keep-going", minute(of: last.when.addingTimeInterval(60)), notice)
+            // Its own name: the page's notice about repeating reminders is "keep-going".
+            let notice: [String: Any] = ["id": "keep-going-more", "title": "Open Nudge", "body": "Open the app to keep your reminders going."]
+            add("keep-going-more", minute(of: last.when.addingTimeInterval(60)), notice)
         }
 
         lock.lock()
@@ -241,6 +302,74 @@ enum Reminders {
         ids.append("snooze|\(task)")
         remove(ids)
         quiet(alarm: alarm)
+        recount(task: task, occ: occ)
+    }
+
+    /// A morning summary's title and line, worded as the page's summaryText words them.
+    private static func summaryText(_ names: [String], count: Int) -> (title: String, body: String) {
+        let word = count == 1 ? "task" : "tasks"
+        return (title: "\(count) \(word) today", body: names.prefix(3).joined(separator: ", "))
+    }
+
+    /// Morning summaries stop counting a task that's done, as the page will once
+    /// it hears. One with nothing left to count goes.
+    private static func recount(task: String, occ: String) {
+        let now = Date()
+        let day = calendar.dateComponents([.year, .month, .day], from: now)
+        let today = String(format: "%04d-%02d-%02d", day.year ?? 0, day.month ?? 0, day.day ?? 0)
+        var alarms: [[String: Any]] = []
+        var changed: [[String: Any]] = []
+        var gone: [String] = []
+        var touched = false
+        lock.lock()
+        let waiting = Set(rows("plan.json").compactMap { $0["id"] as? String })
+        for alarm in rows("alarms.json") {
+            // Each item is [task, the date that finishes it, title, due], as the page's summaryItem writes it.
+            guard let id = alarm["id"] as? String, let items = alarm["items"] as? [[String]] else {
+                alarms.append(alarm)
+                continue
+            }
+            let left = items.filter { item in
+                guard item.count >= 4, item[0] == task else { return true }
+                // A one-off task is finished by any Done.
+                if item[3].isEmpty { return false }
+                // An old reminder, which the page ignores.
+                if occ < item[3] { return true }
+                // A repeating one is caught up to this date, or to today if that's later.
+                return max(occ, today) < item[1]
+            }
+            if left.count == items.count {
+                alarms.append(alarm)
+                continue
+            }
+            touched = true
+            let count = left.count + ((alarm["more"] as? NSNumber)?.intValue ?? 0)
+            if count == 0 {
+                gone.append(id)
+                continue
+            }
+            let text = summaryText(left.compactMap { $0.count > 2 ? $0[2] : nil }, count: count)
+            var fresh = alarm
+            fresh["title"] = text.title
+            fresh["body"] = text.body
+            fresh["items"] = left
+            alarms.append(fresh)
+            if waiting.contains(id) { changed.append(fresh) }
+        }
+        if touched { write(alarms, "alarms.json") }
+        lock.unlock()
+
+        let center = UNUserNotificationCenter.current()
+        if !gone.isEmpty { center.removePendingNotificationRequests(withIdentifiers: gone) }
+        // Adding under the same name replaces the one waiting.
+        for alarm in changed {
+            guard let id = alarm["id"] as? String, let text = alarm["at"] as? String, let at = parts(text),
+                  let when = calendar.date(from: at), when > now else { continue }
+            center.add(request(
+                id: id, alarm: id, at: at, task: "", occ: "",
+                title: alarm["title"] as? String ?? "", body: alarm["body"] as? String ?? ""
+            ))
+        }
     }
 
     /// Rings again in a while. The page hears too, so the task shows it.
