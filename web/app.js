@@ -154,9 +154,39 @@
 
   // ---- the three tabs ----
   let showDoneToday = false;
+  // The day, and how far through it you are.
+  function dayHead(left, done) {
+    const h = el('div', 'day');
+    const words = el('div');
+    const name = el('span', 'day-name', new Intl.DateTimeFormat('en-AU', { weekday: 'long' }).format(now()));
+    name.setAttribute('role', 'heading');
+    name.setAttribute('aria-level', '2');
+    const all = left + done;
+    words.append(name, el('p', 'day-sub', [new Intl.DateTimeFormat('en-AU', { day: 'numeric', month: 'long' }).format(now()), !all ? '' : left ? `${left} to do` : 'All done'].filter(Boolean).join(' \u00b7 ')));
+    h.append(words);
+    if (all) {
+      const ring = el('div', left ? 'ring' : 'ring full');
+      ring.setAttribute('role', 'img');
+      ring.setAttribute('aria-label', `${done} of ${all} done today`);
+      const C = 2 * Math.PI * 23;
+      ring.innerHTML = `<svg width="56" height="56" viewBox="0 0 56 56" aria-hidden="true"><circle cx="28" cy="28" r="23"/><circle class="arc" cx="28" cy="28" r="23" stroke-dasharray="${(C * done / all).toFixed(1)} ${C.toFixed(1)}" transform="rotate(-90 28 28)"/></svg><span aria-hidden="true">${left ? left : ICON.tick}</span>`;
+      h.append(ring);
+    }
+    return h;
+  }
+  // First run: what you type, and the task it turns into.
+  function howTo() {
+    const box = el('div', 'how');
+    box.setAttribute('role', 'img');
+    box.setAttribute('aria-label', 'Type Call mum tomorrow 5pm #home and Nudge makes a task, Call mum, for tomorrow at 5 pm in Home.');
+    const home = state.lists.find(l => l.name.toLowerCase() === 'home');
+    box.innerHTML = `<p class="how-type" aria-hidden="true">Call mum <em>tomorrow 5pm</em> <em>#home</em></p>
+      <div class="how-task" aria-hidden="true"><i></i><span><b>Call mum</b><small>Tomorrow, ${L.timeText('17:00', state.prefs.use24)}<u style="background:${home ? home.colour : 'var(--pos)'}"></u>Home</small></span></div>`;
+    return box;
+  }
   function renderToday() {
     const { overdue, today } = L.today(state.tasks, now());
-    const out = [];
+    const out = [dayHead(overdue.length + today.length, L.doneToday(state.tasks, now()).length)];
     if (overdue.length) {
       const movable = overdue.some(t => L.canMove(t, now()));
       out.push(head('Overdue', [movable && action('Move to today', 'moveOverdue', 'Move overdue tasks to today')], 'late'), taskList(overdue));
@@ -165,7 +195,13 @@
     // Without Overdue above it, the tab already says Today.
     if (today.length) out.push(...(overdue.length ? [head('Today')] : []), taskList(today, true, false, day));
     const done = L.doneToday(state.tasks, now());
-    if (!out.length) out.push(el('p', 'empty', state.tasks.length ? 'Nothing due today.' : 'Type a task below. Try: Call mum tomorrow 5pm #home'));
+    if (out.length === 1) {
+      // Nothing for today: the next things due, so the day isn't a blank page.
+      const next = L.upcoming(state.tasks, now()).days.flatMap(d => d.tasks).slice(0, 3);
+      if (!state.tasks.some(t => !t.deleted)) out.push(howTo(), el('p', 'empty', 'Type a task below.'));
+      else if (next.length && !done.length) out.push(head('Next up'), taskList(next));
+      else if (!done.length) out.push(el('p', 'empty', 'Nothing due today.'));
+    }
     if (done.length) {
       out.push(folded('Done today', done.length, showDoneToday, 'doneToday', 'tasks done today'));
       if (showDoneToday) out.push(taskList(done, true, false, day));
@@ -174,30 +210,46 @@
   }
   function renderUpcoming() {
     const { days, someday } = L.upcoming(state.tasks, now());
-    const out = [];
-    for (const d of days) out.push(head(L.dayText(d.date, now())), taskList(d.tasks, true, false, d.date));
+    // The week ahead: a dot under a day with something due, and a tap goes to it.
+    const week = el('div', 'week');
+    const due = new Map(days.map(d => [d.date, d.tasks.length]));
+    const first = L.iso(now());
+    for (let i = 0; i < 7; i++) {
+      const date = L.addDays(first, i), n = due.get(date) || 0;
+      const at = new Date(date + 'T12:00');
+      const c = el(n ? 'button' : 'div', `wd${i ? '' : ' now'}${n ? ' has' : ''}`);
+      if (n) { c.type = 'button'; c.dataset.day = date; c.setAttribute('aria-label', `${L.dayText(date, now())}, ${n} due`); }
+      else c.setAttribute('aria-hidden', 'true');
+      c.append(el('span', '', new Intl.DateTimeFormat('en-AU', { weekday: 'narrow' }).format(at)), el('b', '', String(at.getDate())), el('i'));
+      week.append(c);
+    }
+    const out = [week];
+    for (const d of days) { const h = head(L.dayText(d.date, now())); h.dataset.at = d.date; out.push(h, taskList(d.tasks, true, false, d.date)); }
     if (someday.length) out.push(head('No date'), taskList(someday));
-    if (!out.length) out.push(el('p', 'empty', 'Nothing coming up.'));
+    if (out.length === 1) out.push(el('p', 'empty', 'Nothing coming up.'));
     return out;
   }
   function renderLists() {
-    const box = el('div', 'card lists');
+    const box = el('div', 'tiles');
     const count = id => state.tasks.filter(t => L.isOpen(t) && (t.list || null) === id).length;
     const line = (id, name, colour) => {
-      const b = el('button', 'row');
+      const b = el('button', 'tile');
       b.type = 'button';
       b.dataset.list = id || 'inbox';
+      const n = count(id);
+      b.setAttribute('aria-label', `${name}, ${n} to do`);
       const d = el('i', 'dot');
       d.style.background = colour;
-      const n = count(id);
-      b.append(d, el('span', 'row-k', name));
-      if (n) b.append(el('span', 'row-v', String(n)));
+      const top = el('span', 'tile-top');
+      top.append(d, el('span', n ? 'tile-n' : 'tile-n none', String(n)));
+      b.append(top, el('span', 'tile-k', name));
       return b;
     };
-    const add = el('button', 'row adder');
+    const add = el('button', 'tile adder');
     add.type = 'button';
     add.dataset.newList = '1';
-    add.append(el('span', 'row-k', 'New list'));
+    add.innerHTML = '<span class="tile-top"><svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M10 4v12M4 10h12"/></svg></span>';
+    add.append(el('span', 'tile-k', 'New list'));
     box.append(line(null, 'Inbox', 'var(--line-strong)'), ...state.lists.map(l => line(l.id, l.name, l.colour)), add);
     return [box];
   }
@@ -216,7 +268,8 @@
   function fitMeta() {
     const m = $('meta');
     m.hidden = false;
-    m.hidden = m.scrollWidth > m.clientWidth + 1;
+    // Today says the day itself, in full.
+    m.hidden = tab === 'today' || m.scrollWidth > m.clientWidth + 1;
   }
   window.addEventListener('resize', fitMeta);
   document.fonts?.ready.then(fitMeta);
@@ -268,6 +321,8 @@
     if (tick) return toggle(tick.dataset.tick);
     const open = e.target.closest('[data-open]');
     if (open) return openTask(open.dataset.open);
+    const day = e.target.closest('[data-day]');
+    if (day) return $('view').querySelector(`[data-at="${day.dataset.day}"]`)?.scrollIntoView({ block: 'start', behavior: 'smooth' });
     const list = e.target.closest('[data-list]');
     if (list) return openList(list.dataset.list === 'inbox' ? null : list.dataset.list);
     if (e.target.closest('[data-new-list]')) return newList();
