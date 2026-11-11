@@ -1002,6 +1002,8 @@
   // ---- boot ----
   // An iPhone can't hand its screen to a reminder, so the switch for it isn't offered.
   if (ios) $('fLoud').closest('.row').hidden = true;
+  // A phone lets a reminder ring only so many times unanswered.
+  if (ios) for (const o of $('fNag').options) if (o.value !== '0') o.textContent += ', 3 more times';
   // Hello goes first, so a bad local copy can't stop the phone's good one arriving.
   if (app) toApp({ type: 'hello' }); else write('state', state);
   render();
