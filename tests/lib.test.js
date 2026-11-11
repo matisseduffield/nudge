@@ -680,3 +680,15 @@ test('a damaged repeat cannot hang the app', () => {
   const bad = [fix({ every: 1, unit: 'days', days: [9] }), fix({ every: -1, unit: 'week' })];
   assert.doesNotThrow(() => L.schedule({ tasks: bad, prefs: {} }, NOW));
 });
+
+test('on iPhone a reminder that has just rung stays while its extra rings are due', () => {
+  const t = task({ due: '2026-11-06', time: '09:50', reminders: [{ before: 0 }], nag: 5 });
+  assert.deepEqual(L.firings(t, NOW), []);
+  assert.deepEqual(L.firings(t, NOW, 60, false, true).map(f => f.at), ['2026-11-06T09:50']);
+  // Past the third extra ring, snoozed since, or not set to keep nudging: gone.
+  assert.deepEqual(L.firings({ ...t, time: '09:44' }, NOW, 60, false, true), []);
+  assert.deepEqual(L.firings({ ...t, snooze: +NOW + 6e5 }, NOW, 60, false, true).map(f => f.at), ['2026-11-06T10:10']);
+  assert.deepEqual(L.firings({ ...t, nag: 0 }, NOW, 60, false, true), []);
+  assert.deepEqual(L.schedule({ tasks: [t], prefs: {} }, NOW), []);
+  assert.equal(L.schedule({ tasks: [t], prefs: {} }, NOW, true).length, 1);
+});

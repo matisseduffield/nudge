@@ -146,7 +146,7 @@ dialog.page::backdrop { background: var(--bg); }
 .tool.danger { color: var(--neg); }
 .page-head .tool { min-width: 44px; padding: 0 8px; }
 .page-head .box.grow { margin-right: 6px; }
-.page-body { flex: 1; min-height: 0; overflow: hidden auto; overscroll-behavior: contain; padding: 4px 16px 20px; }
+.page-body { flex: 1; min-height: 0; overflow: hidden auto; overscroll-behavior: contain; padding: 4px 16px max(20px, env(safe-area-inset-bottom, 0px)); }
 .page-quick { padding: 8px 16px max(10px, env(safe-area-inset-bottom, 0px)); }
 .form { display: grid; align-content: start; gap: 12px; padding-top: 14px; }
 /* Section headings, like the day headings in the lists. */
@@ -227,6 +227,8 @@ dialog.ask h2 { margin-bottom: 10px; font-size: 1.1rem; font-weight: 600; }
 .row-in::placeholder, .title-in::placeholder, .notes-in::placeholder { color: var(--faint); }
 .title-in { display: block; width: 100%; padding: 14px 14px 4px; background: none; border: 0; font-size: 1.22rem; font-weight: 600; line-height: 1.3; outline: none; }
 .notes-in { display: block; width: 100%; min-height: 2.6em; padding: 2px 14px 14px; background: none; border: 0; resize: none; overflow: hidden; line-height: 1.45; color: var(--ink); outline: none; }
+/* Under 16px, an iPhone zooms the page in when the box is tapped. */
+@supports (-webkit-touch-callout: none) { .notes-in { font-size: 1rem; } }
 .card.text:focus-within { box-shadow: inset 0 0 0 2px var(--accent); }
 /* A switch, not a tick box. */
 .switch { appearance: none; -webkit-appearance: none; position: relative; flex: none; width: 46px; height: 28px; margin: 0; border-radius: 14px; background: var(--line-strong); cursor: pointer; transition: background .15s; }

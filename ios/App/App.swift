@@ -39,13 +39,13 @@ enum App {
                 Reminders.plan(msg["alarms"] as? [[String: Any]] ?? [])
                 return true
             case "askNotifications":
-                Notices.ask { _ in sendHealth() }
+                Notices.ask { _ in granted() }
                 return true
             case "openSettings":
                 // Never asked: ask now. Refused before: only Settings can change it.
                 Reminders.undecided { fresh in
                     if fresh {
-                        Notices.ask { _ in sendHealth() }
+                        Notices.ask { _ in granted() }
                     } else if let settings = URL(string: UIApplication.openSettingsURLString) {
                         UIApplication.shared.open(settings)
                     }
@@ -68,6 +68,8 @@ enum App {
                 Shell.current?.send(["type": "open", "task": task])
             }
         }
+        // The page is starting again and has heard nothing: taps wait for its hello.
+        shell.onRestart = { ready = false }
         shell.onActive = {
             guard ready else { return }
             sendHealth()
@@ -107,6 +109,13 @@ enum App {
         if actions.isEmpty { return false }
         shell.send(["type": "actions", "actions": actions])
         return true
+    }
+
+    /// The answer to being asked about notifications. Reminders planned before
+    /// it were turned away by iOS, so they go in again.
+    private static func granted() {
+        Reminders.planAgain()
+        sendHealth()
     }
 
     /// What the page's reminder check shows. Only notifications can be off on iPhone.

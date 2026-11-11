@@ -355,12 +355,17 @@
 
   // Every alarm a task should raise from now on. The text is written for the moment
   // it rings, not the moment it's saved.
-  function firings(task, now, limit = 60, use24 = false) {
+  // With `late` (the iPhone), a reminder that has rung on a task set to keep nudging
+  // stays in the list while its three extra rings are still to come, unless it has
+  // been snoozed since. The phone there can't keep those going by itself.
+  function firings(task, now, limit = 60, use24 = false, late = false) {
     if (!isOpen(task)) return [];
     const out = [];
     const body = (when, day) => (day ? [dayText(day, when), timeText(task.time, use24)].filter(Boolean).join(', ') : '');
     const add = (when, occ) => {
-      if (when > now) out.push({ id: `${task.id}|${local(when)}`, task: task.id, occ, at: local(when), title: task.title, body: body(when, occ), nag: nagOf(task), loud: !!task.loud, use24 });
+      const nag = nagOf(task);
+      const ringing = late && nag > 0 && +when + nag * 3 * 6e4 > now && !(task.snooze > when);
+      if (when > now || ringing) out.push({ id: `${task.id}|${local(when)}`, task: task.id, occ, at: local(when), title: task.title, body: body(when, occ), nag: nagOf(task), loud: !!task.loud, use24 });
     };
     for (const occ of occurrences(task, limit, iso(now))) {
       for (const r of task.reminders) if (r.before != null) add(ringTime(occ, task.time, r.before), occ);
@@ -401,11 +406,11 @@
 
   // The whole list the phone is given, soonest first. Two reminders can't share a
   // minute for one task, and a morning summary rides along for the next fortnight.
-  function schedule(state, now) {
+  function schedule(state, now, late = false) {
     const use24 = !!state.prefs?.use24;
     const seen = new Set();
     let out = [];
-    for (const task of state.tasks) for (const f of firings(task, now, 60, use24)) {
+    for (const task of state.tasks) for (const f of firings(task, now, 60, use24, late)) {
       if (!seen.has(f.id)) { seen.add(f.id); out.push(f); }
     }
     const time = state.prefs?.summary;

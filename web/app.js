@@ -36,7 +36,7 @@
     saveTimer = 0;
     write('state', state);
     const open = state.tasks.filter(L.isOpen);
-    toApp({ type: 'save', state: JSON.stringify(state), alarms: L.schedule(state, now()), widget: { day: L.iso(now()), items: L.widgetItems(state.tasks, now()) } });
+    toApp({ type: 'save', state: JSON.stringify(state), alarms: L.schedule(state, now(), ios), widget: { day: L.iso(now()), items: L.widgetItems(state.tasks, now()) } });
     if (app && open.some(x => x.reminders.length) && health && !health.notifications && !read('askedNotify')) {
       write('askedNotify', true);
       toApp({ type: 'askNotifications' });
@@ -1009,6 +1009,7 @@
   // An iPhone can't hand its screen to a reminder, so the switch for it isn't offered.
   if (ios) $('fLoud').closest('.row').hidden = true;
   // A phone lets a reminder ring only so many times unanswered.
+  if (ios) $('fNag').setAttribute('aria-label', 'Keep nudging');
   if (ios) for (const o of $('fNag').options) if (o.value !== '0') o.textContent += ', 3 more times';
   // Hello goes first, so a bad local copy can't stop the phone's good one arriving.
   if (app) toApp({ type: 'hello' }); else write('state', state);

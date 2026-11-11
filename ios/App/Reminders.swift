@@ -15,6 +15,8 @@ enum Reminders {
     private static let heldForFollows = 16
     private static let category = "task"
     private static let lock = NSLock()
+    /// The page writes its dates in this calendar, whatever the phone is set to.
+    private static let calendar = Calendar(identifier: .gregorian)
 
     // MARK: Files
 
@@ -93,6 +95,7 @@ enum Reminders {
         guard numbers.count >= 5, let year = numbers[0], let month = numbers[1], let day = numbers[2],
               let hour = numbers[3], let minute = numbers[4] else { return nil }
         var out = DateComponents()
+        out.calendar = calendar
         out.year = year
         out.month = month
         out.day = day
@@ -102,7 +105,9 @@ enum Reminders {
     }
 
     private static func minute(of date: Date) -> DateComponents {
-        Calendar.current.dateComponents([.year, .month, .day, .hour, .minute], from: date)
+        var out = calendar.dateComponents([.year, .month, .day, .hour, .minute], from: date)
+        out.calendar = calendar
+        return out
     }
 
     private static func request(id: String, alarm: String, at: DateComponents, task: String, occ: String, title: String, body: String) -> UNNotificationRequest {
@@ -135,14 +140,26 @@ enum Reminders {
         schedule(alarms)
     }
 
+    private typealias Ring = (when: Date, at: DateComponents, alarm: [String: Any])
+
+    private static func nag(_ alarm: [String: Any]) -> Int { (alarm["nag"] as? NSNumber)?.intValue ?? 0 }
+
     private static func schedule(_ alarms: [[String: Any]]) {
-        let calendar = Calendar.current
         let now = Date()
-        var rings: [(when: Date, at: DateComponents, alarm: [String: Any])] = []
+        lock.lock()
+        let seen = Set(rows("seen.json").compactMap { $0["id"] as? String })
+        lock.unlock()
+        var rings: [Ring] = []
+        // Already rung, and set to keep nudging: its extra rings may still be to come.
+        var rung: [Ring] = []
         for alarm in alarms {
-            guard alarm["id"] is String, let text = alarm["at"] as? String, let at = parts(text),
-                  let when = calendar.date(from: at), when > now else { continue }
-            rings.append((when: when, at: at, alarm: alarm))
+            guard let id = alarm["id"] as? String, let text = alarm["at"] as? String, let at = parts(text),
+                  let when = calendar.date(from: at) else { continue }
+            if when > now {
+                rings.append((when: when, at: at, alarm: alarm))
+            } else if nag(alarm) > 0, !seen.contains(id) {
+                rung.append((when: when, at: at, alarm: alarm))
+            }
         }
         rings.sort { $0.when < $1.when }
 
@@ -162,17 +179,25 @@ enum Reminders {
         // extra rings of tasks that keep nudging, then to later reminders.
         let sure = min(rings.count, limit - heldForFollows)
         var spare = limit - sure
-        for ring in rings.prefix(sure) {
-            let nag = (ring.alarm["nag"] as? NSNumber)?.intValue ?? 0
-            guard nag > 0, spare > 0, let id = ring.alarm["id"] as? String else { continue }
+        for ring in rung + Array(rings.prefix(sure)) {
+            let every = nag(ring.alarm)
+            guard every > 0, let id = ring.alarm["id"] as? String else { continue }
             for n in 1...follows where spare > 0 {
-                guard let later = calendar.date(byAdding: .minute, value: nag * n, to: ring.when) else { continue }
+                guard let later = calendar.date(byAdding: .minute, value: every * n, to: ring.when), later > now else { continue }
                 add("\(id)#\(n)", minute(of: later), ring.alarm)
                 spare -= 1
             }
         }
-        for ring in rings.prefix(sure + spare) {
+        var fit = Array(rings.prefix(sure + spare))
+        // More than fits: the last place says so, rather than the reminders going quiet.
+        let more = rings.count > fit.count && fit.count > 1
+        if more { fit.removeLast() }
+        for ring in fit {
             add(ring.alarm["id"] as? String ?? "", ring.at, ring.alarm)
+        }
+        if more, let last = fit.last {
+            let notice: [String: Any] = ["id": "keep-going", "title": "Open Nudge", "body": "Open the app to keep your reminders going."]
+            add("keep-going", minute(of: last.when.addingTimeInterval(60)), notice)
         }
 
         lock.lock()
@@ -194,6 +219,10 @@ enum Reminders {
     /// The reminder was seen: its extra rings stop.
     static func quiet(alarm: String) {
         guard !alarm.isEmpty else { return }
+        // Remembered, so planning again doesn't bring them back.
+        lock.lock()
+        write(Array((rows("seen.json").filter { ($0["id"] as? String) != alarm } + [["id": alarm]]).suffix(100)), "seen.json")
+        lock.unlock()
         remove((1...follows).map { "\(alarm)#\($0)" })
     }
 
