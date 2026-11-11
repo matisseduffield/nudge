@@ -45,6 +45,9 @@ p, h1, h2 { margin: 0; }
   height: 100dvh; max-width: 520px; margin: 0 auto;
   padding: 8px max(16px, env(safe-area-inset-right, 0px)) max(10px, env(safe-area-inset-bottom, 0px)) max(16px, env(safe-area-inset-left, 0px));
 }
+/* The iPhone app draws under the status bar, so the pages step down past it. */
+[data-platform="ios"] .app { padding-top: max(8px, env(safe-area-inset-top, 0px)); }
+[data-platform="ios"] dialog.page { padding-top: env(safe-area-inset-top, 0px); }
 .top { display: flex; align-items: center; justify-content: space-between; gap: 8px; min-height: 48px; }
 .brand { display: flex; align-items: center; gap: 7px; }
 .mark { font-size: 1.22rem; font-weight: 600; letter-spacing: -.015em; }

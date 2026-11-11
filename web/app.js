@@ -3,6 +3,10 @@
   const $ = id => document.getElementById(id);
   const el = (tag, cls, text) => { const e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e; };
   const app = window.nudgeApp || null;
+  // The iPhone app says so before the page runs. It has its own notifications and
+  // nothing to set up but those, and it keeps the keyboard down until a field is tapped.
+  const ios = window.nudgePlatform === 'ios';
+  if (ios) document.documentElement.dataset.platform = 'ios';
 
   const COLOURS = ['#2C53C4', '#1D7548', '#B0392D', '#C08A14', '#7A4FB5', '#5B6861'];
   const ICON = {
@@ -374,6 +378,7 @@
   function newList() {
     draft = { id: L.newId(now()), name: 'New list', colour: COLOURS[state.lists.length % COLOURS.length] };
     openList(draft.id, true);
+    if (ios) return;
     $('listName').focus();
     $('listName').select();
   }
@@ -632,7 +637,7 @@
   // A clear button empties its field as if it had been cleared by hand.
   for (const [x, field] of [['xDue', 'fDue'], ['xTime', 'fTime'], ['xUntil', 'fUntil']]) {
     // Focus stays on the row, as the button that was pressed goes away.
-    $(x).addEventListener('click', () => { $(field).value = ''; $(field).dispatchEvent(new Event('change')); $(field).focus(); });
+    $(x).addEventListener('click', () => { $(field).value = ''; $(field).dispatchEvent(new Event('change')); if (!ios) $(field).focus(); });
   }
   // Tapping anywhere on a date or time row opens its picker, on a computer too.
   for (const input of document.querySelectorAll('input.over')) {
@@ -781,7 +786,7 @@
     $('findBox').value = '';
     renderFind();
     show('findPage');
-    $('findBox').focus();
+    if (!ios) $('findBox').focus();
   });
   $('findBox').addEventListener('input', renderFind);
 
@@ -806,6 +811,7 @@
       }
       return r;
     };
+    if (ios) return $('health').replaceChildren(line('Notifications', health.notifications, 'notifications'));
     $('health').replaceChildren(
       line('Notifications', health.notifications, 'notifications'),
       line('Exact alarms', health.exact, 'alarms'),
@@ -994,6 +1000,8 @@
   document.addEventListener('visibilitychange', () => { if (!document.hidden) checkDay(); });
 
   // ---- boot ----
+  // An iPhone can't hand its screen to a reminder, so the switch for it isn't offered.
+  if (ios) $('fLoud').closest('.row').hidden = true;
   // Hello goes first, so a bad local copy can't stop the phone's good one arriving.
   if (app) toApp({ type: 'hello' }); else write('state', state);
   render();
