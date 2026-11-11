@@ -287,6 +287,12 @@
   });
 
   // ---- quick add ----
+  // The iPhone can't ring like a call, so three marks there mean urgent and no more.
+  function parseQuick(text) {
+    const q = L.parseQuick(text, now(), state.lists, { use24: state.prefs.use24 });
+    if (ios) q.loud = false;
+    return q;
+  }
   function previewText(q) {
     const bits = [];
     if (q.due) bits.push(L.dayText(q.due, now()));
@@ -299,7 +305,7 @@
     return bits.join(' · ');
   }
   function addFrom(text, list) {
-    const q = L.parseQuick(text, now(), state.lists, { use24: state.prefs.use24 });
+    const q = parseQuick(text);
     if (!q.title) return null;
     if (q.listName && !q.list) {
       const made = { id: L.newId(now()), name: q.listName[0].toUpperCase() + q.listName.slice(1), colour: COLOURS[state.lists.length % COLOURS.length] };
@@ -312,7 +318,7 @@
     return t;
   }
   function preview() {
-    const text = previewText(L.parseQuick($('quickBox').value, now(), state.lists, { use24: state.prefs.use24 }));
+    const text = previewText(parseQuick($('quickBox').value));
     $('preview').hidden = !text;
     $('preview').textContent = text;
   }
