@@ -20,7 +20,7 @@
         <h1 class="mark">Nudge</h1>
       </div>
       <div class="top-right">
-        <button class="version" id="version" type="button">About</button>
+        <button class="version" id="version" type="button" data-state="available" hidden>Update available</button>
         <button class="icon-btn" id="searchBtn" type="button" aria-label="Search">
           <svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><circle cx="8.8" cy="8.8" r="5.8"/><path d="m13.2 13.2 4.3 4.3"/></svg>
         </button>
@@ -187,6 +187,9 @@
     <div class="group" id="trashBox" hidden>
       <p class="label">Deleted</p>
       <div class="card" id="trash"></div>
+    </div>
+    <div class="group">
+      <div class="card"><button class="row tall" type="button" id="aboutRow"><svg width="30" height="30" viewBox="18 18 72 72" aria-hidden="true"><rect x="18" y="18" width="72" height="72" rx="17" fill="#E5533D"/><g transform="translate(0 -3)"><path d="M54,28C42,28 35,37 35,49V62L29.5,71C28.5,72.7 29.7,75 31.7,75H76.3C78.3,75 79.5,72.7 78.5,71L73,62V49C73,37 66,28 54,28ZM42.17,55.33L49.17,62.33A3.3,3.3 0 0 0 54.03,62.11L66.53,47.11A3.3,3.3 0 0 0 61.47,42.89L51.28,55.12L46.83,50.67A3.3,3.3 0 0 0 42.17,55.33Z" fill="#FFFFFF" fill-rule="evenodd"/><path d="M46,79.5a8,8 0 0 0 16,0Z" fill="#FFFFFF"/></g></svg><span class="row-k"><b>Nudge</b><small>About, privacy and contact</small></span><span class="row-v" id="aboutRowV"></span></button></div>
     </div>
   </div>
 </dialog>

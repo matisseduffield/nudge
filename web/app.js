@@ -978,10 +978,12 @@
   // selfUpdates is off until the app says otherwise: Play builds update through
   // the store, so there About has no row to check for one.
   let selfUpdates = false, updateReady = false, versionTimer = 0, updateVersion = '', updateSize = 0;
-  // Top right says About, or that an update is waiting; the About page has the rest.
+  // About sits at the foot of Settings. The top right only speaks when an update is waiting.
+  let appVersion = '';
   function showLabel() {
-    $('version').textContent = updateReady ? 'Update available' : 'About';
-    $('version').dataset.state = updateReady ? 'available' : '';
+    $('version').hidden = !updateReady;
+    $('aboutRowV').textContent = updateReady ? 'Update available' : appVersion;
+    $('aboutRowV').classList.toggle('new', updateReady);
     if (updateReady) showNote('Available');
   }
   function showNote(text) {
@@ -1048,6 +1050,7 @@
       } else if (m.type === 'info') {
         selfUpdates = m.updates === true;
         askExact = m.askExact === true;
+        appVersion = m.version || '';
         $('aboutVer').textContent = m.version ? 'Version ' + m.version : '';
         $('aboutVer').hidden = !m.version;
         $('aboutApp').hidden = !selfUpdates;
@@ -1070,6 +1073,7 @@
     });
   }
   $('version').addEventListener('click', () => show('aboutPage'));
+  $('aboutRow').addEventListener('click', () => show('aboutPage'));
 
   // A new day while the app sits open.
   let shown = L.iso(now());
