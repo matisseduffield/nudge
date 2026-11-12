@@ -187,6 +187,17 @@
       <div class="how-task" aria-hidden="true"><i></i><span><b>Call mum</b><small>Tomorrow, ${L.timeText('17:00', state.prefs.use24)}<u style="background:${home ? home.colour : 'var(--pos)'}"></u>Home</small></span></div>`;
     return box;
   }
+  // An empty page: the outline of the tasks that will be here, fading out, and a line about it.
+  function blank(title, sub, colour) {
+    const box = el('div', 'blank');
+    const ghost = el('div', 'ghost');
+    ghost.setAttribute('aria-hidden', 'true');
+    for (const w of [58, 42, 66]) { const r = el('i'); r.append(el('u'), el('s')); r.lastChild.style.width = w + '%'; ghost.append(r); }
+    if (colour) ghost.style.setProperty('--tint', colour);
+    box.append(ghost, el('p', 'blank-t', title));
+    if (sub) box.append(el('p', 'blank-s', sub));
+    return box;
+  }
   function renderToday() {
     const { overdue, today } = L.today(state.tasks, now());
     const out = [dayHead(overdue.length + today.length, L.doneToday(state.tasks, now()).length)];
@@ -203,7 +214,7 @@
       const next = L.upcoming(state.tasks, now()).days.flatMap(d => d.tasks).slice(0, 3);
       if (!state.tasks.some(t => !t.deleted)) out.push(howTo(), el('p', 'empty', 'Type a task below.'));
       else if (next.length && !done.length) out.push(head('Next up'), taskList(next));
-      else if (!done.length) out.push(el('p', 'empty', 'Nothing due today.'));
+      else if (!done.length) out.push(blank('Nothing due today', 'Add a task below.'));
     }
     if (done.length) {
       out.push(folded('Done today', done.length, showDoneToday, 'doneToday', 'tasks done today'));
@@ -229,7 +240,7 @@
     const out = [week];
     for (const d of days) { const h = head(L.dayText(d.date, now())); h.dataset.at = d.date; out.push(h, taskList(d.tasks, true, false, d.date)); }
     if (someday.length) out.push(head('No date'), taskList(someday));
-    if (out.length === 1) out.push(el('p', 'empty', 'Nothing coming up.'));
+    if (out.length === 1) out.push(blank('Nothing coming up', 'Tasks you add show here by day.'));
     return out;
   }
   function renderLists() {
@@ -422,7 +433,7 @@
     $('listForm').hidden = !listEditing;
     if (listEditing) drawSwatches(list.colour);
     const out = [];
-    out.push(open.length ? taskList(open, false, listEditing) : el('p', 'empty', 'Nothing here yet.'));
+    out.push(open.length ? taskList(open, false, listEditing) : blank(done.length ? 'All done' : `Nothing in ${list ? list.name : "this list"} yet`, done.length ? '' : 'Add the first task below.', list && list.colour));
     if (done.length) {
       out.push(folded('Completed', done.length, showDone, 'doneToggle', 'completed tasks', [action('Clear', 'clearDone', 'Clear completed tasks')]));
       if (showDone) out.push(taskList(done, false));
