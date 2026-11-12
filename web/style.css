@@ -203,6 +203,24 @@ dialog.page::backdrop { background: var(--bg); }
 .page-body { flex: 1; min-height: 0; overflow: hidden auto; overscroll-behavior: contain; padding: 4px 16px max(20px, env(safe-area-inset-bottom, 0px)); }
 .page-quick { padding: 8px 16px max(10px, env(safe-area-inset-bottom, 0px)); }
 .form { display: grid; align-content: start; gap: 12px; padding-top: 14px; }
+/* About: who made this and which build it is, then the ways out. */
+.about { display: flex; flex-direction: column; gap: 12px; }
+.about-id { display: grid; justify-items: center; gap: 4px; padding: 30px 0 22px; text-align: center; }
+.about-id svg { margin-bottom: 10px; border-radius: 16px; }
+.about-name { font-size: 1.5rem; font-weight: 600; letter-spacing: -.02em; }
+.about-tag { color: var(--muted); }
+.about-ver { margin-top: 8px; padding: 4px 12px; border: 1px solid var(--line-strong); border-radius: 99px; font-size: .82rem; font-variant-numeric: tabular-nums; color: var(--muted); }
+/* About's links: plain centred text, no rows */
+.about-links { display: grid; justify-items: center; text-align: center; }
+.about-links a, .about-links button { display: inline-flex; align-items: center; gap: 8px; min-height: 44px; padding: 0 10px; background: none; border: 0; font-size: .95rem; color: var(--ink); text-decoration: underline; text-decoration-color: color-mix(in srgb, currentColor 30%, transparent); text-underline-offset: 4px; }
+.about-links [hidden] { display: none; }
+.about-links .about-mail { font-weight: 600; }
+.about-legal { display: flex; align-items: center; justify-content: center; }
+.about-legal i { flex: none; width: 3px; height: 3px; border-radius: 50%; background: var(--muted); }
+.about-links .about-upd { min-height: 40px; margin-bottom: 10px; padding: 0 18px; border: 1px solid color-mix(in srgb, currentColor 30%, transparent); border-radius: 99px; text-decoration: none; }
+.about-upd span { color: var(--muted); }
+.about-upd span:empty { display: none; }
+.about-foot { margin-top: auto; padding: 18px 0 4px; text-align: center; font-size: .8rem; color: var(--faint); }
 /* Section headings, like the day headings in the lists. */
 .label { padding: 0 4px; font-size: .78rem; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); }
 .group { display: grid; gap: 8px; padding-top: 6px; }

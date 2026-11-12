@@ -50,7 +50,7 @@ test('only the Play build asks for exact alarms', () => {
 test('about links to the privacy policy, which opens outside the app', () => {
   const page = read('web/index.html');
   const about = page.slice(page.indexOf('id="aboutPage"'), page.indexOf('</dialog>', page.indexOf('id="aboutPage"')));
-  assert.match(about, /<a class="row" href="https:\/\/teloone\.au\/apps\/nudge\/privacy\/"[^>]*>Privacy<\/a>/);
+  assert.match(about, /<a href="https:\/\/teloone\.au\/apps\/nudge\/privacy\/"[^>]*>Privacy policy<\/a>/);
   // Any address that isn't the app's own goes to the system browser.
   const activity = read('app/src/main/java/com/matisseduffield/nudge/MainActivity.kt');
   assert.match(activity, /if \(request\.url\.host == APP_HOST\) return false\s+runCatching \{ startActivity\(Intent\(Intent\.ACTION_VIEW, request\.url\)\) \}/);

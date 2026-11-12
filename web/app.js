@@ -1048,9 +1048,9 @@
       } else if (m.type === 'info') {
         selfUpdates = m.updates === true;
         askExact = m.askExact === true;
-        $('aboutVer').textContent = m.version || '';
-        $('aboutApp').hidden = !m.version;
-        $('aboutCheck').hidden = !selfUpdates;
+        $('aboutVer').textContent = m.version ? 'Version ' + m.version : '';
+        $('aboutVer').hidden = !m.version;
+        $('aboutApp').hidden = !selfUpdates;
         showLabel();
       } else if (m.type === 'updateStatus' && selfUpdates) {
         if (m.state === 'available') { updateReady = true; return showLabel(); }
