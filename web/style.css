@@ -289,6 +289,7 @@ dialog.ask h2 { margin-bottom: 10px; font-size: 1.1rem; font-weight: 600; }
 .row-k b { display: block; font-weight: 600; line-height: 1.3; }
 .row-k small { display: block; margin-top: 2px; font-size: .8rem; line-height: 1.35; color: var(--muted); }
 .row-v { margin-left: auto; flex: none; max-width: 60%; color: var(--faint); text-align: right; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+#vNag { max-width: 72%; }
 .row-v.set { color: var(--ink); font-weight: 600; }
 .row-v.new { color: var(--accent); font-weight: 600; }
 #aboutRow > svg { flex: none; margin-right: 2px; }

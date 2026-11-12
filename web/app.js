@@ -701,7 +701,8 @@
     value('vTime', L.timeText(t.time, state.prefs.use24));
     value('vRepeat', chosen($('fRepeat')), !!t.repeat);
     value('vUntil', t.repeat?.until ? L.dayText(t.repeat.until, now()) : 'Never', !!t.repeat?.until);
-    value('vNag', chosen($('fNag')), $('fNag').value !== '0');
+    // The row has less room than the picker: an iPhone's longer wording is shortened to fit.
+    value('vNag', chosen($('fNag')).replace(' minutes,', ' min,'), $('fNag').value !== '0');
     value('vList', chosen($('fList')), true);
     value('vPri', chosen($('fPri')), t.pri > 0);
     $('xDue').hidden = !t.due;
