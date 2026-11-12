@@ -976,13 +976,17 @@
   for (const d of document.querySelectorAll('dialog')) d.addEventListener('close', tellBack);
 
   // selfUpdates is off until the app says otherwise: Play builds update through
-  // the store, so there the version is a plain label with nothing to tap.
-  let appVersion = '', selfUpdates = false, updateReady = false, versionTimer = 0, updateVersion = '', updateSize = 0;
-  function showVersion(text, st) {
+  // the store, so there About has no row to check for one.
+  let selfUpdates = false, updateReady = false, versionTimer = 0, updateVersion = '', updateSize = 0;
+  // Top right says About, or that an update is waiting; the About page has the rest.
+  function showLabel() {
+    $('version').textContent = updateReady ? 'Update available' : 'About';
+    $('version').dataset.state = updateReady ? 'available' : '';
+    if (updateReady) showNote('Available');
+  }
+  function showNote(text) {
     clearTimeout(versionTimer);
-    $('version').hidden = false;
-    $('version').textContent = text;
-    $('version').dataset.state = st || '';
+    $('aboutNote').textContent = text;
   }
   function showUpdate(m) {
     const setShown = (id, on) => { $(id).hidden = !on; };
@@ -1042,33 +1046,30 @@
         while (window.nudgeBack());
         $('quickBox').focus();
       } else if (m.type === 'info') {
-        appVersion = m.version;
         selfUpdates = m.updates === true;
         askExact = m.askExact === true;
-        $('version').disabled = !selfUpdates;
-        const seen = read('seenVersion');
-        write('seenVersion', appVersion);
-        if (selfUpdates && !updateReady && seen && seen !== appVersion) {
-          showVersion(`Updated to v${appVersion}`, 'available');
-          versionTimer = setTimeout(() => showVersion(`v${appVersion}`), 4000);
-        } else if (!updateReady) showVersion(`v${appVersion}`);
+        $('aboutVer').textContent = m.version || '';
+        $('aboutApp').hidden = !m.version;
+        $('aboutCheck').hidden = !selfUpdates;
+        showLabel();
       } else if (m.type === 'updateStatus' && selfUpdates) {
-        if (m.state === 'available') { updateReady = true; return showVersion('Update available', 'available'); }
-        showVersion(m.state === 'latest' ? 'Up to date' : 'Couldn’t check');
-        versionTimer = setTimeout(() => showVersion(`v${appVersion}`), 2500);
+        if (m.state === 'available') { updateReady = true; return showLabel(); }
+        showNote(m.state === 'latest' ? 'Up to date' : 'Couldn’t check');
+        versionTimer = setTimeout(() => showNote(''), 4000);
       } else if (m.type === 'update' && selfUpdates) {
-        if (m.state === 'available') { updateReady = true; showVersion('Update available', 'available'); }
+        if (m.state === 'available') { updateReady = true; showLabel(); }
         showUpdate(m);
       }
     };
     $('updateGo').addEventListener('click', () => { showUpdate({ state: 'downloading', progress: 0 }); toApp({ type: 'installUpdate' }); });
     $('updateLater').addEventListener('click', () => { $('updateCard').hidden = true; });
-    $('version').addEventListener('click', () => {
-      if (updateReady) { $('updateCard').hidden = false; return; }
-      showVersion('Checking…');
+    $('aboutCheck').addEventListener('click', () => {
+      if (updateReady) { $('aboutPage').close(); $('updateCard').hidden = false; return; }
+      showNote('Checking…');
       toApp({ type: 'checkUpdate' });
     });
   }
+  $('version').addEventListener('click', () => show('aboutPage'));
 
   // A new day while the app sits open.
   let shown = L.iso(now());

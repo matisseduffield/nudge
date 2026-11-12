@@ -47,10 +47,10 @@ test('only the Play build asks for exact alarms', () => {
   assert.match(flavor('play'), /"ASK_EXACT_ALARM", "true"/);
 });
 
-test('settings links to the privacy policy, which opens outside the app', () => {
+test('about links to the privacy policy, which opens outside the app', () => {
   const page = read('web/index.html');
-  const settings = page.slice(page.indexOf('id="settingsPage"'), page.indexOf('</dialog>', page.indexOf('id="settingsPage"')));
-  assert.match(settings, /<a href="https:\/\/teloone\.au\/apps\/nudge\/privacy\/"[^>]*>Privacy<\/a>/);
+  const about = page.slice(page.indexOf('id="aboutPage"'), page.indexOf('</dialog>', page.indexOf('id="aboutPage"')));
+  assert.match(about, /<a class="row" href="https:\/\/teloone\.au\/apps\/nudge\/privacy\/"[^>]*>Privacy<\/a>/);
   // Any address that isn't the app's own goes to the system browser.
   const activity = read('app/src/main/java/com/matisseduffield/nudge/MainActivity.kt');
   assert.match(activity, /if \(request\.url\.host == APP_HOST\) return false\s+runCatching \{ startActivity\(Intent\(Intent\.ACTION_VIEW, request\.url\)\) \}/);
