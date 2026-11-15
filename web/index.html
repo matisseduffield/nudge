@@ -4,12 +4,12 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,interactive-widget=resizes-content">
 <meta name="referrer" content="no-referrer">
-<meta name="theme-color" content="#E8ECE5" media="(prefers-color-scheme: light)">
-<meta name="theme-color" content="#0E1412" media="(prefers-color-scheme: dark)">
+<meta name="theme-color" content="#F0F1F3" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#171719" media="(prefers-color-scheme: dark)">
 <title>Nudge</title>
 <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%2218 18 72 72%22><rect x=%2218%22 y=%2218%22 width=%2272%22 height=%2272%22 rx=%2217%22 fill=%22%23E5533D%22/><g transform=%22translate(0 -3)%22><path d=%22M54,28C42,28 35,37 35,49V62L29.5,71C28.5,72.7 29.7,75 31.7,75H76.3C78.3,75 79.5,72.7 78.5,71L73,62V49C73,37 66,28 54,28ZM42.17,55.33L49.17,62.33A3.3,3.3 0 0 0 54.03,62.11L66.53,47.11A3.3,3.3 0 0 0 61.47,42.89L51.28,55.12L46.83,50.67A3.3,3.3 0 0 0 42.17,55.33Z%22 fill=%22%23FFFFFF%22 fill-rule=%22evenodd%22/><path d=%22M46,79.5a8,8 0 0 0 16,0Z%22 fill=%22%23FFFFFF%22/></g></svg>">
 <link rel="preload" href="fonts/hanken-grotesk-latin.woff2" as="font" type="font/woff2" crossorigin>
-<link rel="stylesheet" href="style.css?v=14">
+<link rel="stylesheet" href="style.css?v=15">
 </head>
 <body>
 <div class="app">
@@ -20,14 +20,17 @@
         <h1 class="mark">Nudge</h1>
       </div>
       <div class="top-right">
-        <button class="version" id="version" type="button" data-state="available" hidden>Update available</button>
         <button class="icon-btn" id="searchBtn" type="button" aria-label="Search">
-          <svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><circle cx="8.8" cy="8.8" r="5.8"/><path d="m13.2 13.2 4.3 4.3"/></svg>
+          <svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" aria-hidden="true"><circle cx="8.8" cy="8.8" r="5.8"/><path d="m13.2 13.2 4.3 4.3"/></svg>
         </button>
-        <button class="icon-btn" id="settingsBtn" type="button" aria-label="Settings">
-          <svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M3 6h8M15 6h2M3 14h2M9 14h8"/><circle cx="13" cy="6" r="2"/><circle cx="7" cy="14" r="2"/></svg>
-        </button>
+        <button class="icon-btn" id="menuBtn" type="button" aria-label="More" aria-haspopup="menu" aria-expanded="false" aria-controls="menu"><svg width="20" height="20" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true"><circle cx="10" cy="3.6" r="1.7"/><circle cx="10" cy="10" r="1.7"/><circle cx="10" cy="16.4" r="1.7"/></svg></button>
       </div>
+    </div>
+    <!-- More: Settings, and About, which says so when an update is waiting -->
+    <div class="menu" id="menu" role="menu" hidden>
+      <button class="menu-row" id="settingsBtn" type="button" role="menuitem"><svg width="22" height="22" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.45" stroke-linecap="round" aria-hidden="true"><path d="M3 6h8M15 6h2M3 14h2M9 14h8"/><circle cx="13" cy="6" r="2"/><circle cx="7" cy="14" r="2"/></svg><span>Settings</span></button>
+      <button class="menu-row" id="version" type="button" role="menuitem" data-state="available" hidden><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 11v5.5"/><circle cx="12" cy="7.7" r=".5" fill="currentColor"/></svg><span>Update available</span></button>
+      <button class="menu-row" id="aboutBtn" type="button" role="menuitem"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 11v5.5"/><circle cx="12" cy="7.7" r=".5" fill="currentColor"/></svg><span>About</span></button>
     </div>
     <div class="modes">
       <div class="tabs" role="tablist" aria-label="View">
@@ -76,11 +79,11 @@
 <!-- One list -->
 <dialog class="page" id="listPage" aria-labelledby="listTitle">
   <div class="page-head">
-    <button class="icon-btn back" type="button" data-close aria-label="Back"><svg width="10" height="16" viewBox="0 0 10 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 2 2 8l6 6"/></svg></button>
+    <button class="icon-btn back" type="button" data-close aria-label="Back"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12H3M10.5 4.5 3 12l7.5 7.5"/></svg></button>
     <h2 id="listTitle"></h2>
-    <button class="tool" id="listShare" type="button">Share</button>
-    <button class="tool danger" id="listDelete" type="button" hidden>Delete</button>
-    <button class="tool" id="listEdit" type="button">Edit</button>
+    <button class="icon-btn" id="listShare" type="button" aria-label="Share"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 15V3.5M7.5 8 12 3.5 16.5 8M5 13v5.5a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V13"/></svg></button>
+    <button class="icon-btn danger" id="listDelete" type="button" aria-label="Delete" hidden><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4.5 7h15M9.5 7V4.8a.8.8 0 0 1 .8-.8h3.4a.8.8 0 0 1 .8.8V7M6.5 7l.8 11.6a1.5 1.5 0 0 0 1.5 1.4h6.4a1.5 1.5 0 0 0 1.5-1.4L17.5 7M10 11v5M14 11v5"/></svg></button>
+    <button class="icon-btn" id="listEdit" type="button" aria-label="Edit"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m4 20 1-4.2L16.6 4.2a1.8 1.8 0 0 1 2.6 0l.6.6a1.8 1.8 0 0 1 0 2.6L8.2 19 4 20ZM14.8 6l3.2 3.2"/></svg><span class="lbl">Done</span></button>
   </div>
   <div class="page-body">
     <!-- Edit mode: name and colour save as they change, like a task's. -->
@@ -101,9 +104,9 @@
 <!-- One task -->
 <dialog class="page" id="taskPage" aria-label="Task">
   <div class="page-head">
-    <button class="icon-btn back" type="button" data-close aria-label="Back"><svg width="10" height="16" viewBox="0 0 10 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 2 2 8l6 6"/></svg></button>
+    <button class="icon-btn back" type="button" data-close aria-label="Back"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12H3M10.5 4.5 3 12l7.5 7.5"/></svg></button>
     <h2>Task</h2>
-    <button class="tool danger" id="taskDelete" type="button">Delete</button>
+    <button class="icon-btn danger" id="taskDelete" type="button" aria-label="Delete"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4.5 7h15M9.5 7V4.8a.8.8 0 0 1 .8-.8h3.4a.8.8 0 0 1 .8.8V7M6.5 7l.8 11.6a1.5 1.5 0 0 0 1.5 1.4h6.4a1.5 1.5 0 0 0 1.5-1.4L17.5 7M10 11v5M14 11v5"/></svg></button>
   </div>
   <div class="page-body editor">
     <div class="card text">
@@ -154,7 +157,7 @@
 <!-- Search -->
 <dialog class="page" id="findPage" aria-label="Search">
   <div class="page-head">
-    <button class="icon-btn back" type="button" data-close aria-label="Back"><svg width="10" height="16" viewBox="0 0 10 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 2 2 8l6 6"/></svg></button>
+    <button class="icon-btn back" type="button" data-close aria-label="Back"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12H3M10.5 4.5 3 12l7.5 7.5"/></svg></button>
     <input class="box grow" id="findBox" type="search" placeholder="Search tasks" autocomplete="off">
   </div>
   <div class="page-body" id="findBody"></div>
@@ -163,7 +166,7 @@
 <!-- Settings -->
 <dialog class="page" id="settingsPage" aria-labelledby="settingsTitle">
   <div class="page-head">
-    <button class="icon-btn back" type="button" data-close aria-label="Back"><svg width="10" height="16" viewBox="0 0 10 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 2 2 8l6 6"/></svg></button>
+    <button class="icon-btn back" type="button" data-close aria-label="Back"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12H3M10.5 4.5 3 12l7.5 7.5"/></svg></button>
     <h2 id="settingsTitle">Settings</h2>
   </div>
   <div class="page-body form">
@@ -197,7 +200,7 @@
 <!-- About: the version, and the way to the policy, the terms and us -->
 <dialog class="page" id="aboutPage" aria-labelledby="aboutTitle">
     <div class="page-head">
-      <button class="icon-btn back" type="button" data-close aria-label="Back"><svg width="10" height="16" viewBox="0 0 10 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 2 2 8l6 6"/></svg></button>
+      <button class="icon-btn back" type="button" data-close aria-label="Back"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12H3M10.5 4.5 3 12l7.5 7.5"/></svg></button>
       <h2 id="aboutTitle">About</h2>
     </div>
     <div class="page-body about">
@@ -205,13 +208,15 @@
         <svg width="68" height="68" viewBox="18 18 72 72" aria-hidden="true"><rect x="18" y="18" width="72" height="72" rx="17" fill="#E5533D"/><g transform="translate(0 -3)"><path d="M54,28C42,28 35,37 35,49V62L29.5,71C28.5,72.7 29.7,75 31.7,75H76.3C78.3,75 79.5,72.7 78.5,71L73,62V49C73,37 66,28 54,28ZM42.17,55.33L49.17,62.33A3.3,3.3 0 0 0 54.03,62.11L66.53,47.11A3.3,3.3 0 0 0 61.47,42.89L51.28,55.12L46.83,50.67A3.3,3.3 0 0 0 42.17,55.33Z" fill="#FFFFFF" fill-rule="evenodd"/><path d="M46,79.5a8,8 0 0 0 16,0Z" fill="#FFFFFF"/></g></svg>
         <p class="about-name">Nudge</p>
         <p class="about-tag">To-do lists with reminders that ring.</p>
-        <p class="about-ver" id="aboutVer" hidden></p>
       </div>
       <div class="about-links">
-      <div id="aboutApp" hidden><button class="about-upd" type="button" id="aboutCheck">Check for updates<span id="aboutNote" aria-live="polite"></span></button></div>
-      <a class="about-mail" href="mailto:support@teloone.au?subject=Nudge">support@teloone.au</a>
-      <div class="about-legal"><a href="https://teloone.au/apps/nudge/privacy/" rel="noreferrer">Privacy policy</a><i aria-hidden="true"></i><a href="https://teloone.au/apps/nudge/terms/" rel="noreferrer">Terms of use</a></div>
-    </div>
+        <p class="about-row" id="aboutVer" hidden></p>
+        <div id="aboutApp" hidden><button class="about-row" type="button" id="aboutCheck"><span>Check for updates</span><span id="aboutNote" aria-live="polite"></span></button></div>
+      </div>
+      <div class="about-links">
+        <a href="mailto:support@teloone.au?subject=Nudge" class="about-row"><span>Contact support<small>support@teloone.au</small></span></a>
+        <div class="about-legal"><a href="https://teloone.au/apps/nudge/privacy/" class="about-row" rel="noreferrer">Privacy policy</a><a href="https://teloone.au/apps/nudge/terms/" class="about-row" rel="noreferrer">Terms of use</a></div>
+      </div>
       <p class="about-foot">Made in Adelaide by Telo One</p>
     </div>
   </dialog>
@@ -237,6 +242,6 @@
 </dialog>
 
 <script src="lib.js?v=6"></script>
-<script src="app.js?v=14"></script>
+<script src="app.js?v=15"></script>
 </body>
 </html>

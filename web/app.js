@@ -427,7 +427,9 @@
     const done = mine.filter(t => t.done).sort((a, b) => b.done - a.done);
     listEditing = listEditing && !!list;
     $('listEdit').hidden = !list;
-    $('listEdit').textContent = listEditing ? 'Done' : 'Edit';
+    // A pencil to edit; while editing, the word Done in its place.
+    $('listEdit').setAttribute('aria-label', listEditing ? 'Done' : 'Edit');
+    $('listEdit').classList.toggle('on', listEditing);
     $('listShare').hidden = listEditing || !open.length;
     $('listDelete').hidden = !listEditing || !!draft;
     $('listForm').hidden = !listEditing;
@@ -631,7 +633,6 @@
     $('fList').firstChild.value = '';
     $('fList').value = t.list || '';
     $('fCustomRow').hidden = true;
-    $('taskDelete').textContent = 'Delete';
     drawTaskExtras();
     $('taskPage').querySelector('.page-body').scrollTop = 0;   // each task opens at its title
     show('taskPage');
@@ -1063,7 +1064,10 @@
         selfUpdates = m.updates === true;
         askExact = m.askExact === true;
         appVersion = m.version || '';
-        $('aboutVer').textContent = m.version ? 'Version ' + m.version : '';
+        // A row of About's list: the word, and the number under it.
+        const ver = el('span', '', 'Version');
+        ver.append(el('small', '', m.version || ''));
+        $('aboutVer').replaceChildren(ver);
         $('aboutVer').hidden = !m.version;
         $('aboutApp').hidden = !selfUpdates;
         showLabel();
@@ -1085,7 +1089,20 @@
     });
   }
   $('version').addEventListener('click', () => show('aboutPage'));
+  $('aboutBtn').addEventListener('click', () => show('aboutPage'));
   $('aboutRow').addEventListener('click', () => show('aboutPage'));
+
+  // ---- More: the menu under the three dots ----
+  const menu = $('menu');
+  function showMenu(on) {
+    menu.hidden = !on;
+    $('menuBtn').setAttribute('aria-expanded', String(on));
+  }
+  $('menuBtn').addEventListener('click', () => showMenu(menu.hidden));
+  // Choosing a row, a tap anywhere else, or Escape, puts it away.
+  menu.addEventListener('click', () => showMenu(false));
+  document.addEventListener('pointerdown', e => { if (!menu.hidden && !e.target.closest('#menu, #menuBtn')) showMenu(false); });
+  document.addEventListener('keydown', e => { if (e.key === 'Escape' && !menu.hidden) { showMenu(false); $('menuBtn').focus(); } });
 
   // A new day while the app sits open.
   let shown = L.iso(now());

@@ -7,28 +7,62 @@
   unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
 }
 
-/* The same palette as Bureau, Tally, Dailies and Bourse. */
+/* Plain greys, and one colour: a near-black page (pale grey by day), one lighter
+   grey for everything that sits on it, and blue for the one thing to do next.
+   Green is done and red is late. Buttons are lit a little from above, with a
+   thin rim; the round buttons in a header are flat discs, quieter than keys. */
 :root {
-  --bg: #E8ECE5; --surface: #F7F8F4; --ink: #14211C; --muted: #5B6861; --faint: #66736C;
-  --line: #CDD5CC; --line-strong: #8C968F; --accent: #2C53C4;
-  --pos: #1D7548; --neg: #B0392D; --neg-soft: rgba(176, 57, 45, .12);
-  --on-ink: #F7F8F4; --key: #DCE2DA; --key-down: #C6CEC4;
+  --bg: #F0F1F3; --surface: #FFFFFF; --ink: #17181B; --muted: #5F6168; --faint: #696B72;
+  --line: #E1E2E6; --line-strong: #8D8F96; --ring: #8D8F96; --accent: #2C53C4;
+  --pos: #1D7548; --neg: #B0392D; --neg-soft: rgba(176, 57, 45, .09);
+  --on-ink: #FFFFFF; --key: #D6D8DE; --key-hi: #E4E5EA; --key-down: #C6C8CF;
+  --pop: #FFFFFF; --pop-line: rgba(0, 0, 0, .06);
+  --disc: #FFFFFF; --disc-edge: inset 0 0 0 1px rgba(0, 0, 0, .05), 0 2px 6px rgba(0, 0, 0, .08);
+  --rim: inset 0 0 0 1px rgba(0, 0, 0, .04), inset 0 1px 0 rgba(255, 255, 255, .6);
+  --lift: 0 1px 3px rgba(0, 0, 0, .12);
+  /* A key that sits on a card, not the page: a shade the card can't swallow. */
+  --skey-hi: #DEE0E5; --skey: #D0D2D9; --skey-down: #C0C2CA;
+  --dot-lift: transparent; --drag: 0 8px 22px rgba(0, 0, 0, .22);
+  --backdrop: rgba(12, 13, 16, .4);
   --font: "Hanken Grotesk", "Segoe UI", Roboto, system-ui, -apple-system, sans-serif;
   color-scheme: light;
 }
 @media (prefers-color-scheme: dark) {
-  :root {
-    --bg: #0E1412; --surface: #18211E; --ink: #E4EAE5; --muted: #8C9992; --faint: #838F89;
-    --line: #2E3A35; --line-strong: #5F6C66; --accent: #85A2FF;
+  :root:not([data-theme="light"]) {
+    --bg: #171719; --surface: #2F2F2F; --ink: #EAEAEA; --muted: #A0A0A3; --faint: #949497;
+    --line: #434345; --line-strong: #6E6E72; --ring: #858589; --accent: #85A2FF;
     --pos: #5FC890; --neg: #F08476; --neg-soft: rgba(240, 132, 118, .14);
-    --on-ink: #0E1412; --key: #222D29; --key-down: #34413C;
+    --on-ink: #171719; --key: #303132; --key-hi: #47484A; --key-down: #555658;
+    --pop: #121213; --pop-line: rgba(255, 255, 255, .14);
+    --disc: #252526; --disc-edge: inset 0 0 0 1px rgba(255, 255, 255, .08), 0 4px 10px rgba(0, 0, 0, .35);
+    --rim: inset 0 0 0 1px rgba(255, 255, 255, .05), inset 0 1px 0 rgba(255, 255, 255, .1);
+    --lift: 0 2px 5px rgba(0, 0, 0, .35);
+    --skey-hi: #555658; --skey: #47484A; --skey-down: #626366;
+    --dot-lift: rgba(255, 255, 255, .4); --drag: 0 10px 28px rgba(0, 0, 0, .6);
+    --backdrop: rgba(0, 0, 0, .6);
     color-scheme: dark;
   }
+}
+:root[data-theme="dark"] {
+  --bg: #171719; --surface: #2F2F2F; --ink: #EAEAEA; --muted: #A0A0A3; --faint: #949497;
+  --line: #434345; --line-strong: #6E6E72; --ring: #858589; --accent: #85A2FF;
+  --pos: #5FC890; --neg: #F08476; --neg-soft: rgba(240, 132, 118, .14);
+  --on-ink: #171719; --key: #303132; --key-hi: #47484A; --key-down: #555658;
+  --pop: #121213; --pop-line: rgba(255, 255, 255, .14);
+  --disc: #252526; --disc-edge: inset 0 0 0 1px rgba(255, 255, 255, .08), 0 4px 10px rgba(0, 0, 0, .35);
+  --rim: inset 0 0 0 1px rgba(255, 255, 255, .05), inset 0 1px 0 rgba(255, 255, 255, .1);
+  --lift: 0 2px 5px rgba(0, 0, 0, .35);
+  --skey-hi: #555658; --skey: #47484A; --skey-down: #626366;
+  --dot-lift: rgba(255, 255, 255, .4); --drag: 0 10px 28px rgba(0, 0, 0, .6);
+  --backdrop: rgba(0, 0, 0, .6);
+  color-scheme: dark;
 }
 
 * { box-sizing: border-box; }
 [hidden] { display: none !important; }
 html, body { margin: 0; height: 100%; }
+/* Never wider than the screen, whatever the size of the phone's text. */
+html, body { overflow-x: hidden; overflow-x: clip; }
 body {
   background: var(--bg); color: var(--ink);
   font: 400 15px/1.5 var(--font); font-variant-numeric: tabular-nums;
@@ -49,106 +83,138 @@ p, h1, h2 { margin: 0; }
 /* The iPhone app draws under the status bar, so the pages step down past it. */
 [data-platform="ios"] .app { padding-top: max(8px, env(safe-area-inset-top, 0px)); }
 [data-platform="ios"] dialog.page { padding-top: env(safe-area-inset-top, 0px); }
-.top { display: flex; align-items: center; justify-content: space-between; gap: 8px; min-height: 48px; }
-.brand { display: flex; align-items: center; gap: 7px; }
-.mark { font-size: 1.22rem; font-weight: 600; letter-spacing: -.015em; }
-.top-right { display: flex; align-items: center; margin-right: -10px; }
-.icon-btn { display: grid; place-items: center; flex: none; width: 44px; height: 44px; padding: 0; background: none; border: 0; border-radius: 50%; color: var(--muted); }
-@media (hover: hover) { .icon-btn:hover { color: var(--ink); background: var(--key); } }
-.version { min-height: 44px; padding: 0 6px; background: none; border: 0; font-size: .8rem; color: var(--muted); }
-.version[data-state="available"] { color: var(--accent); font-weight: 600; }
 
-.modes { display: flex; align-items: flex-end; justify-content: space-between; gap: 12px; border-bottom: 1px solid var(--line); }
-.tabs { flex: none; display: flex; gap: 22px; }
-.tab { position: relative; padding: 11px 0 12px; background: none; border: 0; font-size: .92rem; font-weight: 600; color: var(--muted); }
+/* Top bar: the name at the left, then a round button for each thing to do. */
+.top { display: flex; align-items: center; justify-content: space-between; gap: 8px; min-height: 56px; }
+.brand { display: flex; align-items: center; gap: 10px; min-width: 0; }
+.brand svg { flex: none; }
+.mark { font-size: 1.35rem; font-weight: 500; letter-spacing: -.01em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.top-right { flex: none; display: flex; align-items: center; gap: 10px; }
+.icon-btn { position: relative; display: grid; place-items: center; flex: none; width: 44px; height: 44px; padding: 0; background: var(--disc); border: 0; border-radius: 50%; box-shadow: var(--disc-edge); color: var(--ink); }
+.icon-btn:active { background: var(--key-down); }
+@media (hover: hover) { .icon-btn:hover { background: var(--key); } }
+.icon-btn.danger { color: var(--neg); }
+/* Edit, while a list is being edited: the way out, said in a word. */
+.icon-btn .lbl { display: none; }
+.icon-btn.on { width: auto; padding: 0 18px; border-radius: 99px; background: var(--accent); box-shadow: none; font-size: .95rem; font-weight: 500; color: var(--on-ink); }
+.icon-btn.on svg { display: none; }
+.icon-btn.on .lbl { display: block; }
+@media (hover: hover) { .icon-btn.on:hover { background: var(--accent); opacity: .9; } }
+
+/* More: a small panel that drops from its button, a picture and a word for each thing. */
+.menu { position: absolute; z-index: 5; top: 68px; right: max(16px, env(safe-area-inset-right, 0px)); min-width: 192px; max-width: calc(100% - 32px); padding: 9px 8px; background: var(--pop); border: 1px solid var(--pop-line); border-radius: 28px; box-shadow: 0 12px 32px rgba(0, 0, 0, .4); transform-origin: top right; animation: pop .14s ease-out; }
+[data-platform="ios"] .menu { top: calc(60px + max(8px, env(safe-area-inset-top, 0px))); }
+@keyframes pop { from { opacity: 0; transform: scale(.94); } }
+.menu-row { display: flex; align-items: center; gap: 15px; width: 100%; min-height: 46px; padding: 0 20px 0 16px; background: none; border: 0; border-radius: 18px; font-size: 1.06rem; text-align: left; white-space: nowrap; }
+.menu-row:active { background: var(--key); }
+@media (hover: hover) { .menu-row:hover { background: var(--key); } }
+.menu-row svg { flex: none; }
+.menu-row span { flex: 1; }
+/* An update is waiting: its row takes About's place, and there's a dot on the button. */
+.menu-row[data-state="available"] span { color: var(--accent); }
+#version:not([hidden]) ~ #aboutBtn { display: none; }
+.app:has(#version:not([hidden])) #menuBtn::after { content: ""; position: absolute; top: 9px; right: 9px; width: 8px; height: 8px; border-radius: 50%; background: var(--accent); }
+@media (prefers-reduced-motion: reduce) { .menu { animation: none; } }
+
+/* Today, Upcoming, Lists: a pill track with a raised pill for the one in view. */
+.modes { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-top: 6px; }
+/* Each tab is as tall as the track, so a thumb has all of it; the raised pill is drawn a little inside. */
+.tabs { flex: 0 1 auto; min-width: 0; display: flex; gap: 2px; padding: 0 3px; border-radius: 99px; background: var(--surface); }
+.tab { position: relative; z-index: 0; flex: 0 1 auto; min-width: 0; min-height: 44px; padding: 0 15px; background: none; border: 0; border-radius: 99px; font-size: .92rem; font-weight: 500; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+@media (hover: hover) { .tab:hover { color: var(--ink); } }
 .tab[aria-selected="true"] { color: var(--ink); }
-.tab[aria-selected="true"]::after { content: ""; position: absolute; left: 0; right: 0; bottom: -1px; height: 2px; border-radius: 1px; background: var(--ink); }
-.meta { min-width: 0; padding-bottom: 12px; font-size: .84rem; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.tab[aria-selected="true"]::before { content: ""; position: absolute; z-index: -1; inset: 3px 0; border-radius: 99px; background: linear-gradient(var(--skey-hi), var(--skey)); box-shadow: var(--rim); }
+.meta { min-width: 0; padding-right: 4px; font-size: .84rem; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
-.update { flex: none; display: grid; gap: 12px; margin-top: 8px; padding: 14px; background: var(--surface); border-radius: 12px; }
-.update-title { font-weight: 600; line-height: 1.3; }
-.update-sub, .update-msg { font-size: .84rem; color: var(--muted); }
-.update-notes { margin: 0; padding: 0 0 0 16px; font-size: .88rem; line-height: 1.4; }
+.update { flex: none; display: grid; gap: 14px; margin-top: 10px; padding: 20px; background: var(--surface); border-radius: 24px; }
+.update-title { font-size: 1.06rem; font-weight: 500; line-height: 1.3; }
+.update-sub, .update-msg { font-size: .88rem; color: var(--muted); }
+.update-notes { margin: 0; padding: 0 0 0 16px; font-size: .9rem; line-height: 1.4; }
 .update .actions { margin-top: 0; }
 .update-progress { display: flex; align-items: center; gap: 12px; min-height: 44px; }
-.update-track { flex: 1; height: 6px; border-radius: 3px; background: var(--key); overflow: hidden; }
+.update-track { flex: 1; height: 6px; border-radius: 3px; background: var(--line); overflow: hidden; }
 .update-track span { display: block; height: 100%; width: 0; border-radius: 3px; background: var(--accent); transition: width .2s; }
-.update-pct { min-width: 3.2ch; text-align: right; font-size: .86rem; font-weight: 600; }
+.update-pct { min-width: 3.2ch; text-align: right; font-size: .88rem; font-weight: 500; }
 
-.warn { flex: none; margin-top: 8px; padding: 9px 12px; background: var(--neg-soft); border: 0; border-radius: 9px; font-size: .86rem; font-weight: 600; color: var(--neg); text-align: left; cursor: pointer; }
-.form .warn { margin-top: 0; }
+.warn { flex: none; margin-top: 10px; padding: 12px 20px; background: var(--neg-soft); border: 0; border-radius: 22px; font-size: .9rem; font-weight: 500; line-height: 1.4; color: var(--neg); text-align: left; cursor: pointer; }
+.form .warn, .editor .warn { margin-top: 0; }
 
 /* ---- tasks ---- */
 .view { flex: 1; min-height: 0; overflow: hidden auto; overscroll-behavior: contain; scrollbar-width: none; padding-bottom: 8px; }
 .view::-webkit-scrollbar { display: none; }
 /* Every section heading: its name on the left, what can be done to it on the right. */
-.head { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; padding: 18px 4px 8px; font-size: .78rem; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); }
+.head { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; padding: 20px 20px 8px; font-size: .9rem; color: var(--muted); }
 .head.late { color: var(--neg); }
-.head .acts { display: flex; gap: 20px; }
-.head button { min-height: 44px; margin: -14px 0 -8px; padding: 0; background: none; border: 0; font-size: .84rem; font-weight: 600; letter-spacing: 0; text-transform: none; color: var(--accent); }
+.head .acts { display: flex; gap: 12px; }
+.head button { min-width: 44px; min-height: 44px; margin: -14px 0 -10px; padding: 0; background: none; border: 0; font-size: .9rem; font-weight: 500; color: var(--accent); text-align: right; }
 /* A section's tasks share one panel, like the rows of a task or Settings. */
 /* Rows draw their own hairlines and corners, so a row being dragged stays whole past the
    panel's edge, and the space it leaves is plain panel, one row high. */
-.tasks { display: grid; background: var(--surface); border-radius: 12px; }
-.task + .task { border-top: 1px solid var(--line); }
-.task:first-child { border-radius: 12px 12px 0 0; }
-.task:last-child { border-bottom-left-radius: 12px; border-bottom-right-radius: 12px; }
-.task:only-child { border-radius: 12px; }
-.view > .tasks:first-child, .view > .card:first-child, .page-body > .tasks:first-child, .list-body > .tasks:first-child, .list-form { margin-top: 14px; }
-.task { position: relative; display: grid; grid-template-columns: 44px minmax(0, 1fr); align-items: center; min-height: 56px; background: var(--surface); }
-.tick { display: grid; place-items: center; width: 44px; height: 56px; padding: 0; background: none; border: 0; }
-.tick i { display: grid; place-items: center; width: 22px; height: 22px; border-radius: 50%; border: 2px solid var(--line-strong); color: transparent; }
-.tick.pri1 i { border-color: var(--accent); }
-.tick.pri2 i { border-color: var(--neg); }
+.tasks { display: grid; background: var(--surface); border-radius: 24px; }
+.task { position: relative; display: grid; grid-template-columns: 56px minmax(0, 1fr); align-items: center; min-height: 60px; background: var(--surface); }
+.task + .task::before { content: ""; position: absolute; top: 0; left: 56px; right: 20px; height: 1px; background: var(--line); }
+.task:first-child { border-radius: 24px 24px 0 0; }
+.task:last-child { border-bottom-left-radius: 24px; border-bottom-right-radius: 24px; }
+.task:only-child { border-radius: 24px; }
+.view > .tasks:first-child, .view > .card:first-child { margin-top: 14px; }
+.page-body > .tasks:first-child, .list-body > .tasks:first-child, .list-form { margin-top: 8px; }
+.list-form:not([hidden]) + .list-body > :first-child { margin-top: 12px; }
+/* The round tick at the left: empty to do, green once done. Blue or red round it for what matters more. */
+.tick { align-self: stretch; display: grid; place-items: center; width: 56px; min-height: 56px; padding: 0; background: none; border: 0; }
+.tick i { display: grid; place-items: center; width: 24px; height: 24px; border-radius: 50%; border: 1.5px solid var(--ring); color: transparent; }
+.tick.pri1 i { border-width: 2px; border-color: var(--accent); }
+.tick.pri2 i { border-width: 2px; border-color: var(--neg); }
 .task.done .tick i { background: var(--pos); border-color: var(--pos); color: var(--on-ink); }
-.task.sortable { grid-template-columns: 44px minmax(0, 1fr) 44px; transition: transform .16s ease; }
+.task.sortable { grid-template-columns: 56px minmax(0, 1fr) 52px; transition: transform .16s ease; }
 @media (prefers-reduced-motion: reduce) { .task.sortable { transition: none; } }
-.task.lifted { z-index: 2; transition: none; border-radius: 12px; box-shadow: 0 6px 16px rgba(0, 0, 0, .18); }
-.grip { display: grid; place-items: center; width: 44px; height: 56px; padding: 0; background: none; border: 0; color: var(--line-strong); touch-action: none; cursor: grab; }
-.task-main { min-width: 0; padding: 8px 12px 8px 0; background: none; border: 0; text-align: left; }
-.task-main b { display: block; font-size: 1rem; font-weight: 600; line-height: 1.3; overflow-wrap: anywhere; }
-.task.done .task-main b { font-weight: 400; color: var(--muted); text-decoration: line-through; }
-.sub { display: flex; flex-wrap: wrap; align-items: center; gap: 0 10px; font-size: .8rem; line-height: 1.4; color: var(--muted); }
-.sub .late, .sub .loud { color: var(--neg); font-weight: 600; }
+.task.lifted { z-index: 2; transition: none; border-radius: 24px; background: var(--key-hi); box-shadow: var(--drag); }
+.task.lifted::before, .task.lifted + .task::before { display: none; }
+.grip { align-self: stretch; display: grid; place-items: center; width: 52px; min-height: 56px; padding: 0; background: none; border: 0; color: var(--muted); touch-action: none; cursor: grab; }
+.task-main { align-self: stretch; min-width: 0; padding: 10px 20px 10px 0; background: none; border: 0; text-align: left; }
+.task.sortable .task-main { padding-right: 4px; }
+.task-main b { display: block; font-size: 1.06rem; font-weight: 400; line-height: 1.3; overflow-wrap: anywhere; }
+.task.done .task-main b { color: var(--muted); text-decoration: line-through; }
+.sub { display: flex; flex-wrap: wrap; align-items: center; gap: 0 10px; margin-top: 2px; font-size: .84rem; line-height: 1.4; color: var(--muted); }
+.sub .late, .sub .loud { color: var(--neg); font-weight: 500; }
 .sub span { display: inline-flex; align-items: center; gap: 4px; }
 .sub svg { flex: none; }
 /* Said by a screen reader, not shown. */
 .sub .vh { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
 .dot { width: 8px; height: 8px; border-radius: 50%; flex: none; }
-.empty { padding: 48px 12px; font-size: .94rem; color: var(--muted); text-align: center; text-wrap: balance; }
+/* A list's colour is the one it was given. On a dark card it's shown lighter, by a veil of white over the dot. */
+.dot, .how-task u { position: relative; overflow: hidden; }
+.dot::after, .how-task u::after { content: ""; position: absolute; inset: 0; background: var(--dot-lift); }
+.empty { padding: 28px 20px; font-size: .94rem; color: var(--muted); text-align: center; text-wrap: balance; }
 
-/* An empty page: ghost rows where tasks will be, fading out, with a line about it. */
-.blank { display: grid; margin-top: 14px; text-align: center; }
-.ghost { display: grid; background: var(--surface); border-radius: 12px; -webkit-mask-image: linear-gradient(#000 15%, transparent 92%); mask-image: linear-gradient(#000 15%, transparent 92%); }
-.ghost i { display: grid; grid-template-columns: 44px minmax(0, 1fr); align-items: center; min-height: 56px; }
-.ghost i + i { border-top: 1px solid var(--line); }
-.ghost u { justify-self: center; width: 22px; height: 22px; border-radius: 50%; border: 2px solid var(--tint, var(--line-strong)); opacity: .55; }
-.ghost s { height: 9px; border-radius: 5px; background: var(--line-strong); opacity: .5; }
-.blank-t { margin: -6px 0 0; font-size: 1.25rem; font-weight: 600; letter-spacing: -.01em; text-wrap: balance; }
-.blank-s { margin: 6px 0 0; font-size: .92rem; color: var(--muted); }
+/* An empty page: a grey line about it, and the rest left empty. */
+.blank { display: grid; gap: 2px; margin-top: 14px; padding: 28px 20px; text-align: center; }
+.ghost { display: none; }
+.blank-t { font-size: .94rem; color: var(--ink); text-wrap: balance; }
+.blank-s { font-size: .94rem; color: var(--muted); text-wrap: balance; }
 
-/* ---- today: the day, and a ring that fills as it gets done ---- */
-.day { display: flex; align-items: center; justify-content: space-between; gap: 16px; min-height: 64px; padding: 20px 4px 4px; }
-.day-name { display: block; font-size: 1.9rem; font-weight: 600; line-height: 1.1; letter-spacing: -.02em; }
-.day-sub { margin-top: 4px; font-size: .92rem; color: var(--muted); }
+/* ---- today: the day in a card, the date as its label, and a ring that fills as it gets done ---- */
+.day { display: flex; align-items: center; justify-content: space-between; gap: 16px; min-height: 100px; margin-top: 14px; padding: 18px 22px; background: var(--surface); border-radius: 24px; }
+.day > div:first-child { display: flex; flex-direction: column-reverse; min-width: 0; }
+.day-name { display: block; margin-top: 2px; font-size: 1.75rem; font-weight: 400; line-height: 1.25; letter-spacing: -.015em; }
+.day-sub { font-size: 1rem; line-height: 1.4; color: var(--muted); }
 .ring { position: relative; flex: none; display: grid; place-items: center; width: 56px; height: 56px; }
 .ring > svg { position: absolute; inset: 0; }
 .ring circle { fill: none; stroke: var(--line); stroke-width: 4; }
 .ring .arc { stroke: var(--pos); stroke-linecap: round; transition: stroke-dasharray .3s; }
-.ring span { display: grid; place-items: center; font-size: 1.1rem; font-weight: 600; }
+.ring span { display: grid; place-items: center; font-size: 1.1rem; font-weight: 500; }
 .ring.full span { color: var(--pos); }
 .ring.full span svg { width: 18px; height: 18px; }
 .view > .day + .tasks { margin-top: 14px; }
 
 /* First run: the words you type, then the task they make. */
-.how { display: grid; gap: 12px; margin-top: 18px; padding: 16px; background: var(--surface); border-radius: 12px; }
-.how-type { display: flex; flex-wrap: wrap; align-items: center; gap: 0 .3em; min-height: 46px; padding: 8px 12px; background: var(--bg); border-radius: 9px; font-size: 1rem; }
+.how { display: grid; gap: 14px; margin-top: 14px; padding: 20px; background: var(--surface); border-radius: 24px; }
+.how-type { display: flex; flex-wrap: wrap; align-items: center; gap: 0 .3em; min-height: 48px; padding: 8px 16px; background: var(--bg); border-radius: 18px; font-size: 1rem; }
 .how-type::after { content: ""; width: 2px; height: 1.2em; margin-left: 1px; background: var(--accent); animation: caret 1.1s steps(1) infinite; }
-.how-type em { font-style: normal; font-weight: 600; color: var(--accent); }
-.how-task { position: relative; display: grid; grid-template-columns: 34px minmax(0, 1fr); align-items: center; padding: 4px 0 0 2px; animation: how-in .5s .25s both; }
-.how-task > i { width: 22px; height: 22px; border-radius: 50%; border: 2px solid var(--line-strong); }
-.how-task b { display: block; font-size: 1rem; font-weight: 600; line-height: 1.3; }
-.how-task small { display: flex; align-items: center; font-size: .8rem; color: var(--muted); }
+.how-type em { font-style: normal; font-weight: 500; color: var(--accent); }
+.how-task { position: relative; display: grid; grid-template-columns: 36px minmax(0, 1fr); align-items: center; padding: 2px 0 0 2px; animation: how-in .5s .25s both; }
+.how-task > i { width: 24px; height: 24px; border-radius: 50%; border: 1.5px solid var(--ring); }
+.how-task b { display: block; font-size: 1.06rem; font-weight: 400; line-height: 1.3; }
+.how-task small { display: flex; align-items: center; font-size: .84rem; color: var(--muted); }
 .how-task u { width: 8px; height: 8px; margin: 0 5px 0 10px; border-radius: 50%; }
 .how + .empty { padding-top: 20px; }
 @keyframes caret { 50% { opacity: 0; } }
@@ -156,47 +222,59 @@ p, h1, h2 { margin: 0; }
 @media (prefers-reduced-motion: reduce) { .how-type::after, .how-task { animation: none; } }
 
 /* ---- upcoming: the week ahead ---- */
-.week { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 4px; margin-top: 14px; padding: 10px 6px; background: var(--surface); border-radius: 12px; }
-.wd { display: grid; justify-items: center; gap: 4px; min-height: 64px; padding: 4px 0 6px; background: none; border: 0; border-radius: 9px; }
-.wd span { font-size: .72rem; font-weight: 600; color: var(--muted); }
-.wd b { display: grid; place-items: center; width: 30px; height: 30px; border-radius: 50%; font-size: .98rem; font-weight: 600; }
-.wd.now b { background: var(--ink); color: var(--on-ink); }
+.week { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 4px; }
+.view > .week { margin-top: 14px; padding: 12px 8px; background: var(--surface); border-radius: 24px; }
+.wd { display: grid; justify-items: center; gap: 4px; min-height: 64px; padding: 4px 0 6px; background: none; border: 0; border-radius: 16px; }
+.wd span { font-size: .78rem; color: var(--muted); }
+.wd b { display: grid; place-items: center; width: 32px; height: 32px; border-radius: 50%; font-size: 1rem; font-weight: 400; }
+.wd.now b { background: var(--ink); font-weight: 500; color: var(--on-ink); }
 .wd i { width: 5px; height: 5px; border-radius: 50%; }
 .wd.has i { background: var(--accent); }
-button.wd:active { background: var(--key); }
+button.wd:active { background: var(--key-down); }
 
-/* ---- lists: a tile each, its count large ---- */
-.tiles { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; margin-top: 14px; }
-.tile { display: flex; flex-direction: column; justify-content: space-between; gap: 18px; min-height: 108px; padding: 14px; background: var(--surface); border: 0; border-radius: 12px; text-align: left; }
-.tile:active { background: var(--key); }
-.tile-top { display: flex; align-items: center; justify-content: space-between; min-height: 34px; }
-.tile .dot { width: 12px; height: 12px; }
-.tile-n { font-size: 1.7rem; font-weight: 600; line-height: 1; letter-spacing: -.02em; }
-.tile-n.none { color: var(--line-strong); }
-.tile-k { font-size: 1rem; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.tile.adder { background: none; box-shadow: inset 0 0 0 1.5px var(--line); color: var(--muted); }
-button.row { width: 100%; border: 0; text-align: left; }
+/* ---- lists: a tile each, its name as the label and its count large under it ---- */
+.tiles { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); grid-auto-rows: 1fr; gap: 12px; margin-top: 14px; }
+.tile { display: grid; grid-template-columns: auto minmax(0, 1fr); grid-template-areas: "dot name" "n n"; align-content: space-between; align-items: start; gap: 14px 9px; min-height: 112px; padding: 18px 20px 16px; background: var(--surface); border: 0; border-radius: 22px; text-align: left; }
+.tile:active { background: var(--key-down); }
+@media (hover: hover) { .tile:hover { background: var(--key-hi); } .tile:active { background: var(--key-down); } }
+.tile-top { display: contents; }
+/* The dot sits beside the first line of the name, which runs to two lines before it's cut. */
+.tile .dot { grid-area: dot; width: 10px; height: 10px; margin-top: calc(.65rem - 5px); }
+.tile-k { grid-area: name; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; line-clamp: 2; overflow: hidden; font-size: 1rem; line-height: 1.3; color: var(--muted); overflow-wrap: anywhere; }
+.tile-n { grid-area: n; align-self: end; font-size: 1.75rem; font-weight: 400; line-height: 1.15; letter-spacing: -.015em; }
+.tile-n.none { color: var(--faint); }
+/* New list is something to do, not a list: no card, a thin edge, a plus and its name. */
+.tile.adder { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px; background: none; box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--line-strong) 55%, transparent); color: var(--muted); text-align: center; }
+.tile.adder svg { width: 22px; height: 22px; }
+.tile.adder:active { background: var(--key); }
+@media (hover: hover) { .tile.adder:hover { background: none; color: var(--ink); } .tile.adder:active { background: var(--key); } }
+.tile.adder .tile-k { display: block; color: inherit; }
+button.row { width: 100%; border: 0; background: none; text-align: left; }
 a.row { color: inherit; text-decoration: none; }
-button.row:active, a.row:active { background: var(--key); }
+button.row:active, a.row:active { background: var(--key-down); }
 .row > .dot { width: 10px; height: 10px; }
 
-/* ---- quick add ---- */
+/* ---- quick add: at the bottom, in reach of a thumb ---- */
 .quick { flex: none; padding-top: 8px; }
-.quick-row { display: grid; grid-template-columns: minmax(0, 1fr) 46px; gap: 8px; }
-.box { width: 100%; min-width: 0; min-height: 46px; padding: 0 12px; background: var(--surface); border: 0; border-radius: 9px; font-size: 1rem; }
+.quick-row { display: grid; grid-template-columns: minmax(0, 1fr) 52px; gap: 10px; }
+.box { width: 100%; min-width: 0; min-height: 52px; padding: 0 20px; background: var(--surface); border: 0; border-radius: 99px; font-size: 1rem; }
 .box::placeholder { color: var(--muted); }
 .box:disabled { opacity: .6; }
 .box[type="date"], .box[type="time"] { padding-right: 8px; }
-.box.grow { flex: 1; min-width: 0; }
-.add { display: grid; place-items: center; height: 46px; padding: 0; background: var(--ink); border: 0; border-radius: 9px; color: var(--on-ink); }
-.preview { padding: 0 2px 6px; font-size: .82rem; font-weight: 600; color: var(--accent); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.toast { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 44px; margin-top: 6px; padding: 0 14px; background: var(--ink); border-radius: 9px; font-size: .9rem; font-weight: 600; color: var(--on-ink); }
-dialog .toast { flex: none; margin: 0 16px 10px; }
+.box.grow { flex: 1; min-width: 0; min-height: 46px; }
+.box[type="search"]::-webkit-search-cancel-button { margin-right: -6px; }
+.add { display: grid; place-items: center; width: 52px; height: 52px; padding: 0; background: var(--accent); border: 0; border-radius: 50%; color: var(--on-ink); }
+.add:active { opacity: .85; }
+.preview { padding: 0 20px 8px; font-size: .84rem; font-weight: 500; color: var(--accent); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.toast { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 48px; margin-top: 6px; padding: 0 20px; background: var(--ink); border-radius: 99px; font-size: .92rem; font-weight: 500; color: var(--on-ink); }
+/* Over a page it floats at the foot, above the add row where there is one, so nothing moves to make room. */
+dialog .toast { position: absolute; z-index: 3; left: 0; right: 0; bottom: 0; margin: 0 16px 10px; }
+dialog:has(.page-quick) .toast { bottom: calc(52px + max(10px, env(safe-area-inset-bottom, 0px))); }
 /* Last on a page, it keeps clear of the home bar. */
 [data-platform="ios"] dialog .toast:last-child { margin-bottom: max(10px, env(safe-area-inset-bottom, 0px)); }
-.link { min-height: 44px; padding: 0 4px; background: none; border: 0; font-weight: 600; color: inherit; text-decoration: underline; }
+.link { min-height: 44px; margin-right: -8px; padding: 0 8px; background: none; border: 0; font-weight: 500; color: inherit; text-decoration: underline; text-underline-offset: 3px; }
 
-/* ---- pages over the app ---- */
+/* ---- pages over the app: a round Back with the name beside it ---- */
 dialog.page {
   width: 100%; max-width: 520px; height: 100dvh; max-height: 100dvh; margin: 0 auto; padding: 0;
   border: 0; background: var(--bg); color: var(--ink); overflow: hidden;
@@ -204,125 +282,134 @@ dialog.page {
 dialog.page[open] { display: flex; flex-direction: column; animation: slide .18s ease-out; }
 dialog.page::backdrop { background: var(--bg); }
 @keyframes slide { from { transform: translateX(16px); opacity: .5; } }
-.page-head { flex: none; display: flex; align-items: center; gap: 6px; min-height: 56px; padding: 6px 10px 6px 6px; border-bottom: 1px solid var(--line); }
-.page-head h2 { flex: 1; min-width: 0; font-size: 1.1rem; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.tool { min-height: 44px; padding: 0 2px; background: none; border: 0; font-size: .9rem; font-weight: 600; color: var(--muted); white-space: nowrap; }
+.page-head { flex: none; display: flex; align-items: center; gap: 10px; min-height: 64px; padding: 8px max(16px, env(safe-area-inset-right, 0px)) 0 max(16px, env(safe-area-inset-left, 0px)); }
+.page-head h2 { flex: 1; min-width: 0; font-size: 1.35rem; font-weight: 500; letter-spacing: -.01em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.tool { min-width: 44px; min-height: 44px; padding: 0 8px; background: none; border: 0; font-size: .95rem; font-weight: 500; color: var(--accent); white-space: nowrap; }
 .tool.danger { color: var(--neg); }
-.page-head .tool { min-width: 44px; padding: 0 8px; }
-.page-head .box.grow { margin-right: 6px; }
-.page-body { flex: 1; min-height: 0; overflow: hidden auto; overscroll-behavior: contain; padding: 4px 16px max(20px, env(safe-area-inset-bottom, 0px)); }
+.page-body { flex: 1; min-height: 0; overflow: hidden auto; overscroll-behavior: contain; scrollbar-width: none; padding: 6px 16px max(20px, env(safe-area-inset-bottom, 0px)); }
+.page-body::-webkit-scrollbar { display: none; }
 .page-quick { padding: 8px 16px max(10px, env(safe-area-inset-bottom, 0px)); }
-.form { display: grid; align-content: start; gap: 12px; padding-top: 14px; }
-/* About: who made this and which build it is, then the ways out. */
-.about { display: flex; flex-direction: column; gap: 12px; }
-.about-id { display: grid; justify-items: center; gap: 4px; padding: 30px 0 22px; text-align: center; }
-.about-id svg { margin-bottom: 10px; border-radius: 16px; }
-.about-name { font-size: 1.5rem; font-weight: 600; letter-spacing: -.02em; }
+.form { display: grid; align-content: start; gap: 12px; padding-top: 8px; }
+
+/* About: who this is, then rounded lists, a row for each thing, with a hairline between them. */
+.about { display: flex; flex-direction: column; gap: 18px; padding-top: 30px; }
+.about-id { display: grid; justify-items: center; gap: 4px; margin-bottom: 8px; padding: 4px 0 2px; text-align: center; }
+.about-id svg { margin-bottom: 10px; border-radius: 15px; }
+.about-name { font-size: 1.4rem; font-weight: 500; letter-spacing: -.02em; line-height: 1.2; }
 .about-tag { color: var(--muted); }
-.about-ver { margin-top: 8px; padding: 4px 12px; border: 1px solid var(--line-strong); border-radius: 99px; font-size: .82rem; font-variant-numeric: tabular-nums; color: var(--muted); }
-/* About's links: plain centred text, no rows */
-.about-links { display: grid; justify-items: center; text-align: center; }
-.about-links a, .about-links button { display: inline-flex; align-items: center; gap: 8px; min-height: 44px; padding: 0 10px; background: none; border: 0; font-size: .95rem; color: var(--ink); text-decoration: underline; text-decoration-color: color-mix(in srgb, currentColor 30%, transparent); text-underline-offset: 4px; }
-.about-links [hidden] { display: none; }
-.about-links .about-mail { font-weight: 600; }
-.about-legal { display: flex; align-items: center; justify-content: center; }
-.about-legal i { flex: none; width: 3px; height: 3px; border-radius: 50%; background: var(--muted); }
-.about-links .about-upd { min-height: 40px; margin-bottom: 10px; padding: 0 18px; border: 1px solid color-mix(in srgb, currentColor 30%, transparent); border-radius: 99px; text-decoration: none; }
-.about-upd span { color: var(--muted); }
-.about-upd span:empty { display: none; }
-.about-foot { margin-top: auto; padding: 18px 0 4px; text-align: center; font-size: .8rem; color: var(--faint); }
+.about-links { flex: none; display: grid; padding: 0 20px; background: var(--surface); border-radius: 24px; }
+/* A list with nothing to show (the version, in a browser) isn't drawn. */
+.about-links:not(:has(> .about-row:not([hidden]), > :not([hidden]) > .about-row)) { display: none; }
+.about-legal, #aboutApp { display: contents; }
+.about-links .about-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; width: 100%; min-height: 56px; margin: 0; padding: 12px 0; background: none; border: 0; font-size: 1.125rem; line-height: 1.3; color: var(--ink); text-align: left; text-decoration: none; }
+.about-links > :not([hidden]) ~ .about-row, .about-links > :not([hidden]) ~ * > .about-row, .about-legal > .about-row + .about-row { border-top: 1px solid var(--line); }
+.about-row small { display: block; font-size: .9rem; color: var(--muted); }
+.about-row > span + span { flex: none; font-size: .9rem; color: var(--muted); }
+.about-row > span + span:empty { display: none; }
+a.about-row::after, #aboutRow::after { content: ""; flex: none; width: 9px; height: 9px; margin-right: 3px; border: solid var(--line-strong); border-width: 1.5px 1.5px 0 0; transform: rotate(45deg); }
+.about-foot { margin-top: auto; padding: 18px 0 4px; text-align: center; font-size: .8rem; color: var(--muted); }
+
 /* Section headings, like the day headings in the lists. */
-.label { padding: 0 4px; font-size: .78rem; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); }
+.label { padding: 0 20px; font-size: .9rem; color: var(--muted); }
 .group { display: grid; gap: 8px; padding-top: 6px; }
-.week { display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px; }
-.week button { min-height: 44px; padding: 0; background: var(--surface); border: 0; border-radius: 9px; font-size: .8rem; font-weight: 600; color: var(--muted); }
-.week button[aria-pressed="true"] { background: var(--ink); color: var(--on-ink); }
-.step { display: grid; grid-template-columns: 44px minmax(0, 1fr) 44px; align-items: center; min-height: 44px; margin: 0 -4px; }
-.step .tick { width: 44px; height: 44px; }
-.step .tick i { width: 20px; height: 20px; }
+.step .tick { align-self: center; width: 44px; height: 44px; min-height: 0; }
+.step .tick i { width: 22px; height: 22px; }
 .step.done .tick i { background: var(--pos); border-color: var(--pos); color: var(--on-ink); }
 .step.done span { color: var(--muted); text-decoration: line-through; }
-.step span { font-size: .96rem; overflow-wrap: anywhere; }
-.step-x { display: grid; place-items: center; width: 44px; height: 44px; padding: 0; background: none; border: 0; color: var(--muted); }
-.check { display: flex; align-items: center; justify-content: space-between; gap: 10px; min-height: 48px; padding: 6px 12px; background: var(--surface); border-radius: 9px; font-size: .92rem; }
-.check + .check { margin-top: 6px; }
+.step span { overflow-wrap: anywhere; }
+.step-x { display: grid; place-items: center; width: 44px; height: 44px; padding: 0; background: none; border: 0; border-radius: 50%; color: var(--muted); }
+@media (hover: hover) { .step-x:hover { background: var(--key-hi); color: var(--ink); } }
+/* Settings' check and Deleted rows: what it is, then how it stands or what to do about it. */
+.check { position: relative; display: flex; align-items: center; justify-content: space-between; gap: 10px; min-height: 56px; padding: 12px 20px; font-size: 1.06rem; line-height: 1.3; }
 .check span { min-width: 0; overflow-wrap: anywhere; }
-.check b { font-weight: 600; color: var(--pos); }
+.check b { font-size: .95rem; font-weight: 400; color: var(--pos); }
 .check b.off { color: var(--neg); }
-.check .tool { color: var(--accent); }
+.check .tool { flex: none; margin-right: -8px; }
 
-dialog.ask { width: min(340px, calc(100vw - 32px)); padding: 16px; border: 0; border-radius: 12px; background: var(--surface); color: var(--ink); }
-dialog.ask::backdrop { background: rgba(10, 16, 14, .45); }
-dialog.ask h2 { margin-bottom: 10px; font-size: 1.1rem; font-weight: 600; }
-.ask-text { font-size: .94rem; line-height: 1.45; color: var(--muted); }
-.row.swatches { justify-content: space-between; gap: 6px; min-height: 64px; }
+/* Questions: a rounded sheet, with the two answers as pills. */
+dialog.ask { width: min(360px, calc(100vw - 32px)); padding: 22px; border: 0; border-radius: 28px; background: var(--surface); color: var(--ink); }
+dialog.ask::backdrop { background: var(--backdrop); }
+dialog.ask h2 { margin-bottom: 8px; font-size: 1.2rem; font-weight: 500; line-height: 1.3; }
+.ask-text { font-size: .96rem; line-height: 1.5; color: var(--muted); }
+.row.swatches { justify-content: space-between; gap: 6px; min-height: 68px; }
 /* They give a little on a narrow screen rather than run off it. */
 .swatch { position: relative; flex: 0 1 36px; min-width: 26px; aspect-ratio: 1; height: auto; padding: 0; border: 0; border-radius: 50%; }
 /* The dot stays small. What takes the tap is finger sized. */
 .swatch::after { content: ""; position: absolute; inset: -9px -4px; }
 .swatch[aria-pressed="true"] { outline: 2.5px solid var(--ink); outline-offset: 3px; }
-.actions { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 12px; }
-.btn { min-height: 44px; background: var(--key); border: 0; border-radius: 9px; font-size: .92rem; font-weight: 600; }
-.btn.primary { background: var(--ink); color: var(--on-ink); }
-.btn.danger { background: var(--neg); color: var(--on-ink); }
+.actions { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 18px; }
+/* Every .btn sits on a card or a sheet, so it takes the lighter key. */
+.btn { min-height: 48px; padding: 0 14px; background: linear-gradient(var(--skey-hi), var(--skey)); border: 0; border-radius: 99px; box-shadow: var(--rim); font-size: .95rem; font-weight: 500; }
+.btn:active { background: var(--skey-down); }
+.btn.primary { background: var(--accent); box-shadow: none; color: var(--on-ink); }
+.btn.danger { background: var(--neg); box-shadow: none; color: var(--on-ink); }
+.btn.primary:active, .btn.danger:active { opacity: .85; }
 
 @media (prefers-reduced-motion: reduce) { dialog.page[open] { animation: none; } }
 
 /* ---- a task, and settings: grouped rows, the label on the left and its value on the right ---- */
-.editor { display: flex; flex-direction: column; gap: 10px; padding-top: 14px; }
+.editor { display: flex; flex-direction: column; gap: 12px; padding-top: 8px; }
 /* Panels keep their full height and the page scrolls, rather than squeezing them. */
 .editor > *, .group > .card { flex: none; min-height: min-content; }
-.sec { padding: 10px 4px 0; font-size: .78rem; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); }
-/* Rows sit on one panel with hairlines between them; a hidden row leaves no gap. */
+.sec { padding: 8px 20px 0; font-size: .9rem; color: var(--muted); }
+/* Rows sit on one panel with hairlines between them. Each row draws the line above
+   itself, a pixel past its top edge: on the first row showing, the panel's edge cuts
+   it off, so a hidden row leaves no line behind. */
 /* One column that never grows past the panel, so a long name ellipsises instead. */
-.card { display: grid; grid-template-columns: minmax(0, 1fr); gap: 1px; background: var(--line); border-radius: 12px; overflow: hidden; }
-.card.text { display: block; background: var(--surface); }
-.rows-in { display: grid; gap: 1px; }
+.card { display: grid; grid-template-columns: minmax(0, 1fr); background: var(--surface); border-radius: 24px; overflow: hidden; }
+.card.text { display: block; }
+.rows-in { display: grid; }
 .rows-in:empty { display: none; }
-.row { position: relative; display: flex; align-items: center; gap: 10px; min-height: 52px; padding: 0 14px; background: var(--surface); font-size: .98rem; }
-.row.tall { min-height: 64px; padding-top: 10px; padding-bottom: 10px; }
-.row-hit { position: relative; flex: 1; min-width: 0; align-self: stretch; display: flex; align-items: center; gap: 12px; margin-left: -14px; padding-left: 14px; cursor: pointer; }
+.row { position: relative; display: flex; align-items: center; gap: 10px; min-height: 56px; padding: 0 20px; font-size: 1.06rem; }
+.row::before, .check::before { content: ""; position: absolute; top: -1px; left: 20px; right: 20px; height: 1px; background: var(--line); pointer-events: none; }
+.row.tall { min-height: 68px; padding-top: 2px; padding-bottom: 2px; }
+.row-hit { position: relative; flex: 1; min-width: 0; align-self: stretch; display: flex; align-items: center; gap: 12px; margin-left: -20px; padding-left: 20px; cursor: pointer; }
 /* The tap area runs to the panel's edges. */
-.row-hit:last-child { margin-right: -14px; padding-right: 14px; }
-.row-k { min-width: 0; overflow-wrap: anywhere; }
+.row-hit:last-child { margin-right: -20px; padding-right: 20px; }
+.row-k { min-width: 0; padding: 12px 0; line-height: 1.3; overflow-wrap: anywhere; }
 .row > .row-k { flex: 1; }
-.row-k b { display: block; font-weight: 600; line-height: 1.3; }
-.row-k small { display: block; margin-top: 2px; font-size: .8rem; line-height: 1.35; color: var(--muted); }
-.row-v { margin-left: auto; flex: none; max-width: 60%; color: var(--faint); text-align: right; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.row-k b { display: block; font-weight: 400; line-height: 1.3; }
+.row-k small { display: block; margin-top: 2px; font-size: .86rem; line-height: 1.35; color: var(--muted); }
+.row-v { margin-left: auto; flex: none; max-width: 60%; font-size: .96rem; color: var(--muted); text-align: right; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 #vNag { max-width: 72%; }
-.row-v.set { color: var(--ink); font-weight: 600; }
-.row-v.new { color: var(--accent); font-weight: 600; }
-#aboutRow > svg { flex: none; margin-right: 2px; }
-.row.adder .row-k { color: var(--accent); font-weight: 600; }
+.row-v.set { color: var(--ink); }
+.row-v.new { color: var(--accent); font-weight: 500; }
+#aboutRow { gap: 12px; }
+#aboutRow > svg { flex: none; border-radius: 8px; }
+/* An update is waiting: the row says so, and its second line makes way for that. */
+#aboutRow:has(.row-v.new) .row-k small { display: none; }
+.row.adder .row-k { color: var(--accent); font-weight: 500; }
 /* The real control, invisible over the whole row, so a tap opens the phone's own picker. */
 .over { position: absolute; inset: 0; width: 100%; height: 100%; margin: 0; padding: 0; border: 0; opacity: 0; cursor: pointer; font-size: 16px; }
 .row:has(.over:focus-visible) { outline: 2px solid var(--accent); outline-offset: -2px; }
-.over:disabled + *, .row:has(.over:disabled) { opacity: .55; }
+/* Dimmed once, not once for the row and again for what's in it. */
 .row:has(.over:disabled) .row-hit { cursor: default; opacity: .55; }
-.row-x { flex: none; display: grid; place-items: center; width: 44px; height: 44px; margin-right: -12px; padding: 0; background: none; border: 0; border-radius: 50%; color: var(--muted); }
-@media (hover: hover) { .row-x:hover { background: var(--key); color: var(--ink); } }
-.row.days { padding: 8px 10px; }
+.row-x { flex: none; display: grid; place-items: center; width: 44px; height: 44px; margin-right: -14px; padding: 0; background: none; border: 0; border-radius: 50%; color: var(--muted); }
+@media (hover: hover) { .row-x:hover { background: var(--key-hi); color: var(--ink); } }
+/* Certain days: a round key for each day of the week, blue for the ones it falls on. */
+.row.days { padding: 10px; }
 .row.days .week { flex: 1; }
-.row.days .week button { background: var(--key); }
-.row.days .week button[aria-pressed="true"] { background: var(--ink); color: var(--on-ink); }
-.row.step { gap: 0; margin: 0; padding: 0 2px; }
+/* Round, as wide as its column allows up to 44px; what takes the tap is taller than the key on a narrow phone. */
+.row.days .week button { position: relative; justify-self: center; width: 100%; max-width: 44px; aspect-ratio: 1; padding: 0; background: linear-gradient(var(--skey-hi), var(--skey)); border: 0; border-radius: 50%; box-shadow: var(--rim); font-size: clamp(11px, 3.4vw, .8rem); font-weight: 500; color: var(--ink); }
+.row.days .week button::after { content: ""; position: absolute; inset: -6px -2px; }
+.row.days .week button:active { background: var(--skey-down); }
+.row.days .week button[aria-pressed="true"] { background: var(--accent); box-shadow: none; color: var(--on-ink); }
+.row.step { gap: 0; margin: 0; padding: 0 6px 0 9px; }
 .row.step > span { flex: 1; min-width: 0; }
-.row-in { flex: 1; min-width: 0; min-height: 50px; padding: 0; background: none; border: 0; font-size: 1rem; outline: none; }
-.row:has(.row-in:focus-visible) { box-shadow: inset 0 0 0 2px var(--accent); }
-.row-in::placeholder, .title-in::placeholder, .notes-in::placeholder { color: var(--faint); }
-.title-in { display: block; width: 100%; padding: 14px 14px 4px; background: none; border: 0; font-size: 1.22rem; font-weight: 600; line-height: 1.3; outline: none; }
-.notes-in { display: block; width: 100%; min-height: 2.6em; padding: 2px 14px 14px; background: none; border: 0; resize: none; overflow: hidden; line-height: 1.45; color: var(--ink); outline: none; }
+.row-in { flex: 1; min-width: 0; min-height: 54px; padding: 0; background: none; border: 0; font-size: 1.06rem; outline: none; }
+/* The ring goes round the whole panel, so it follows its corners rather than being cut by them. */
+.card:has(.row-in:focus-visible) { box-shadow: inset 0 0 0 2px var(--accent); }
+.row-in::placeholder, .title-in::placeholder, .notes-in::placeholder { color: var(--muted); }
+.title-in { display: block; width: 100%; padding: 18px 20px 4px; background: none; border: 0; font-size: 1.2rem; font-weight: 500; line-height: 1.3; letter-spacing: -.01em; text-overflow: ellipsis; outline: none; }
+.notes-in { display: block; width: 100%; min-height: 2.6em; padding: 2px 20px 18px; background: none; border: 0; resize: none; overflow: hidden; line-height: 1.45; color: var(--ink); outline: none; }
 /* Under 16px, an iPhone zooms the page in when the box is tapped. */
 @supports (-webkit-touch-callout: none) { .notes-in { font-size: 1rem; } }
 .card.text:focus-within { box-shadow: inset 0 0 0 2px var(--accent); }
 /* A switch, not a tick box. */
-.switch { appearance: none; -webkit-appearance: none; position: relative; flex: none; width: 46px; height: 28px; margin: 0; border-radius: 14px; background: var(--line-strong); cursor: pointer; transition: background .15s; }
-.switch::after { content: ""; position: absolute; top: 3px; left: 3px; width: 22px; height: 22px; border-radius: 50%; background: var(--surface); box-shadow: 0 1px 2px rgba(0, 0, 0, .25); transition: transform .15s; }
+.switch { appearance: none; -webkit-appearance: none; position: relative; flex: none; width: 50px; height: 30px; margin: 0; border-radius: 15px; background: var(--line-strong); cursor: pointer; transition: background .15s; }
+.switch::after { content: ""; position: absolute; top: 4px; left: 4px; width: 22px; height: 22px; border-radius: 50%; background: #FFFFFF; box-shadow: 0 1px 2px rgba(0, 0, 0, .25); transition: transform .15s; }
 .switch:checked { background: var(--accent); }
-.switch:checked::after { transform: translateX(18px); }
+.switch:checked::after { transform: translateX(20px); }
 @media (prefers-reduced-motion: reduce) { .switch, .switch::after { transition: none; } }
 
-/* Settings' check and Deleted rows share a panel like the rest. */
-.card > .check { border-radius: 0; }
-.card > .check + .check { margin-top: 0; }
 .card:empty { display: none; }
