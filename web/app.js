@@ -14,7 +14,7 @@
     bell: '<svg width="11" height="11" viewBox="0 0 12 12" fill="currentColor" aria-hidden="true"><path d="M6 1a3.6 3.6 0 0 0-3.6 3.6c0 2.6-1 3.6-1.4 4h10c-.4-.4-1.4-1.4-1.4-4A3.6 3.6 0 0 0 6 1Zm-1.3 9a1.4 1.4 0 0 0 2.6 0z"/></svg>',
     repeat: '<svg width="11" height="11" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2 5.5A3.5 3.5 0 0 1 5.5 2H9M7.5.5 9 2 7.5 3.5M10 6.5A3.5 3.5 0 0 1 6.5 10H3M4.5 11.5 3 10l1.5-1.5"/></svg>',
     grip: '<svg width="16" height="10" viewBox="0 0 16 10" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" aria-hidden="true"><path d="M1 1h14M1 5h14M1 9h14"/></svg>',
-    cross: '<svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="m2.5 2.5 7 7M9.5 2.5l-7 7"/></svg>',
+    cross: '<svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M2.5 2.5l7 7M9.5 2.5l-7 7"/></svg>',
   };
 
   // ---- the data ----
@@ -860,6 +860,8 @@
 
   // ---- search ----
   function renderFind() {
+    // The field's own clear button, there while there's something to clear.
+    $('findClear').hidden = !$('findBox').value;
     const hits = L.search(state.tasks, $('findBox').value);
     $('findBody').replaceChildren(...(hits.length ? [taskList(hits)] : $('findBox').value.trim() ? [el('p', 'empty', 'Nothing matches.')] : []));
   }
@@ -870,6 +872,14 @@
     if (!ios) $('findBox').focus();
   });
   $('findBox').addEventListener('input', renderFind);
+  // Clear empties the field as if by hand, and the field keeps the focus.
+  // The press doesn't take the focus from the field, so a phone's keyboard stays up.
+  $('findClear').addEventListener('mousedown', e => e.preventDefault());
+  $('findClear').addEventListener('click', () => {
+    $('findBox').value = '';
+    $('findBox').dispatchEvent(new Event('input'));
+    $('findBox').focus();
+  });
 
   // ---- settings ----
   let health = null, askExact = false;
@@ -981,12 +991,129 @@
   }
   function haptic() { toApp({ type: 'haptic' }); }
   window.nudgeBack = () => {
+    // An open drop-down goes first.
+    if (pickOpen()) { closePick(); return true; }
     const d = openDialog();
     if (d) { d.close(); return true; }
     return false;
   };
-  function tellBack() { toApp({ type: 'back', enabled: !!openDialog() }); }
+  function tellBack() { toApp({ type: 'back', enabled: pickOpen() || !!openDialog() }); }
   for (const d of document.querySelectorAll('dialog')) d.addEventListener('close', tellBack);
+
+  // ---- drop-downs ----
+  // Each choice row is a button beside its hidden <select>, which stays the source of truth: the
+  // menu is made from the select's options each time it opens, and choosing a row sets the select
+  // and fires the change the rest of the app listens for.
+  const ROW_TICK = '<svg class="tick" width="18" height="18" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m4 10.5 4 4 8-9"/></svg>';
+  const pickMenu = $('pickMenu');
+  let picking = null;   // the row whose menu is open
+  let pickedAt = 0;     // when it opened
+  // Open, and its page still is: a page that has just closed takes its menu with it.
+  const pickOpen = () => !!picking && picking.closest('dialog')?.open !== false;
+  function openPick(trigger) {
+    closePick();
+    const select = $(trigger.dataset.pick);
+    if (select.disabled) return;
+    // Add a reminder does something rather than choose: no tick, and its first option,
+    // which only names the row, isn't a row of the menu.
+    const action = 'pickAction' in trigger.dataset;
+    const rows = [...select.options].filter(o => !o.hidden && !(action && o.value === '')).map(o => {
+      const row = el('button', 'menu-row');
+      row.type = 'button';
+      row.dataset.value = o.value;
+      row.disabled = o.disabled;
+      row.setAttribute('role', action ? 'menuitem' : 'menuitemradio');
+      if (!action) row.setAttribute('aria-checked', String(o.value === select.value));
+      row.append(el('span', '', o.textContent));
+      if (!action) row.insertAdjacentHTML('beforeend', ROW_TICK);
+      return row;
+    });
+    if (!rows.length) return;
+    pickMenu.replaceChildren(...rows);
+    pickMenu.setAttribute('aria-label', select.getAttribute('aria-label') || '');
+    // A page is a <dialog>, drawn above everything outside it: the menu goes inside the one it's for.
+    (trigger.closest('dialog') || document.body).append(pickMenu);
+    // Under its row, from the row's right edge, where the value is. Above it when it doesn't fit
+    // below and there's more room there. Never off the screen, and no taller than the room it
+    // has: the rest scrolls.
+    pickMenu.style.cssText = '';
+    pickMenu.hidden = false;
+    const t = (trigger.closest('.row') || trigger).getBoundingClientRect(), W = document.documentElement.clientWidth, H = innerHeight;
+    const w = pickMenu.offsetWidth, h = pickMenu.offsetHeight;
+    const below = H - 12 - (t.bottom - 4), above = t.top + 4 - 12;
+    const up = h > below && above > below;
+    pickMenu.style.left = Math.max(12, Math.min(W - 12 - w, t.right - w)) + 'px';
+    pickMenu.style.top = (up ? Math.max(12, t.top + 4 - h) : t.bottom - 4) + 'px';
+    pickMenu.style.maxHeight = (up ? above : below) + 'px';
+    pickMenu.style.transformOrigin = `${up ? 'bottom' : 'top'} right`;
+    picking = trigger;
+    pickedAt = performance.now();
+    trigger.setAttribute('aria-expanded', 'true');
+    const at = pickMenu.querySelector('[aria-checked="true"]') || pickMenu.querySelector('.menu-row:not(:disabled)');
+    if (at) { at.focus({ preventScroll: true }); at.scrollIntoView({ block: 'nearest' }); }
+    tellBack();
+  }
+  // Focus goes back to the row, so the keyboard carries on from where it was.
+  function closePick(refocus = true) {
+    if (!picking) return;
+    const trigger = picking;
+    picking = null;
+    pickMenu.hidden = true;
+    trigger.setAttribute('aria-expanded', 'false');
+    if (refocus) trigger.focus({ preventScroll: true });
+    tellBack();
+  }
+  for (const b of document.querySelectorAll('[data-pick]')) {
+    b.addEventListener('click', () => (picking === b ? closePick() : openPick(b)));
+    b.addEventListener('keydown', e => { if (e.key === 'ArrowDown' && picking !== b) { e.preventDefault(); openPick(b); } });
+    // A select the code switches off takes its row with it.
+    const select = $(b.dataset.pick);
+    const match = () => { b.disabled = select.disabled; if (select.disabled && picking === b) closePick(false); };
+    new MutationObserver(match).observe(select, { attributes: true, attributeFilter: ['disabled'] });
+    match();
+  }
+  pickMenu.addEventListener('click', e => {
+    const row = e.target.closest('.menu-row');
+    if (!row || row.disabled || !picking) return;
+    const select = $(picking.dataset.pick), value = row.dataset.value;
+    closePick();
+    // As with the phone's own picker, choosing what's already chosen changes nothing.
+    if (value === select.value) return;
+    select.value = value;
+    select.dispatchEvent(new Event('change', { bubbles: true }));
+  });
+  pickMenu.addEventListener('keydown', e => {
+    const rows = [...pickMenu.querySelectorAll('.menu-row:not(:disabled)')], at = rows.indexOf(document.activeElement);
+    const to = { ArrowDown: (at + 1) % rows.length, ArrowUp: (at - 1 + rows.length) % rows.length, Home: 0, End: rows.length - 1 }[e.key];
+    if (to != null) { e.preventDefault(); rows[to].focus(); }
+    else if (e.key === 'Tab') closePick();
+  });
+  // A tap anywhere else, Escape, the page scrolling or the screen changing shape puts it away.
+  // Like the phone's own picker, that tap does nothing else. Only another choice row takes it, and opens.
+  let swallow = false;
+  document.addEventListener('pointerdown', e => {
+    swallow = false;
+    if (!picking || e.target.closest('#pickMenu') || e.target.closest('[data-pick]') === picking) return;
+    closePick();
+    if (e.target.closest('[data-pick]')) return;
+    swallow = true;
+    e.stopPropagation();
+  }, true);
+  for (const type of ['pointerup', 'pointercancel']) document.addEventListener(type, () => setTimeout(() => { swallow = false; }), true);
+  document.addEventListener('click', e => { if (swallow) { swallow = false; e.stopPropagation(); e.preventDefault(); } }, true);
+  // Escape puts the menu away and leaves its page open.
+  let escapedAt = 0;
+  document.addEventListener('keydown', e => { if (e.key === 'Escape' && picking) { e.preventDefault(); escapedAt = performance.now(); closePick(); } }, true);
+  for (const d of document.querySelectorAll('dialog')) {
+    d.addEventListener('cancel', e => { if (picking || performance.now() - escapedAt < 200) { e.preventDefault(); closePick(); } });
+    d.addEventListener('close', () => closePick(false));
+  }
+  // (Not the tail of a scroll that was still settling as the menu opened.)
+  document.addEventListener('scroll', e => { if (picking && !pickMenu.contains(e.target) && performance.now() - pickedAt > 250) closePick(); }, true);
+  addEventListener('resize', () => closePick());
+  // Focus rings on the rows and the menu are for the keyboard, not for a finger.
+  document.addEventListener('keydown', e => { if (e.key === 'Tab' || e.key.startsWith('Arrow')) document.documentElement.classList.add('kbd'); }, true);
+  document.addEventListener('pointerdown', () => document.documentElement.classList.remove('kbd'), true);
 
   // selfUpdates is off until the app says otherwise: Play builds update through
   // the store, so there About has no row to check for one.
@@ -1064,10 +1191,8 @@
         selfUpdates = m.updates === true;
         askExact = m.askExact === true;
         appVersion = m.version || '';
-        // A row of About's list: the word, and the number under it.
-        const ver = el('span', '', 'Version');
-        ver.append(el('small', '', m.version || ''));
-        $('aboutVer').replaceChildren(ver);
+        // A row of About's list: the word at the left, the number at the right.
+        $('aboutVer').replaceChildren(el('span', '', 'Version'), el('span', '', m.version || ''));
         $('aboutVer').hidden = !m.version;
         $('aboutApp').hidden = !selfUpdates;
         showLabel();

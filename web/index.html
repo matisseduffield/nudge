@@ -9,7 +9,7 @@
 <title>Nudge</title>
 <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%2218 18 72 72%22><rect x=%2218%22 y=%2218%22 width=%2272%22 height=%2272%22 rx=%2217%22 fill=%22%23E5533D%22/><g transform=%22translate(0 -3)%22><path d=%22M54,28C42,28 35,37 35,49V62L29.5,71C28.5,72.7 29.7,75 31.7,75H76.3C78.3,75 79.5,72.7 78.5,71L73,62V49C73,37 66,28 54,28ZM42.17,55.33L49.17,62.33A3.3,3.3 0 0 0 54.03,62.11L66.53,47.11A3.3,3.3 0 0 0 61.47,42.89L51.28,55.12L46.83,50.67A3.3,3.3 0 0 0 42.17,55.33Z%22 fill=%22%23FFFFFF%22 fill-rule=%22evenodd%22/><path d=%22M46,79.5a8,8 0 0 0 16,0Z%22 fill=%22%23FFFFFF%22/></g></svg>">
 <link rel="preload" href="fonts/hanken-grotesk-latin.woff2" as="font" type="font/woff2" crossorigin>
-<link rel="stylesheet" href="style.css?v=15">
+<link rel="stylesheet" href="style.css?v=18">
 </head>
 <body>
 <div class="app">
@@ -21,14 +21,14 @@
       </div>
       <div class="top-right">
         <button class="icon-btn" id="searchBtn" type="button" aria-label="Search">
-          <svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" aria-hidden="true"><circle cx="8.8" cy="8.8" r="5.8"/><path d="m13.2 13.2 4.3 4.3"/></svg>
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="10.8" cy="10.8" r="6.8"/><path d="m15.8 15.8 4.7 4.7"/></svg>
         </button>
         <button class="icon-btn" id="menuBtn" type="button" aria-label="More" aria-haspopup="menu" aria-expanded="false" aria-controls="menu"><svg width="20" height="20" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true"><circle cx="10" cy="3.6" r="1.7"/><circle cx="10" cy="10" r="1.7"/><circle cx="10" cy="16.4" r="1.7"/></svg></button>
       </div>
     </div>
     <!-- More: Settings, and About, which says so when an update is waiting -->
     <div class="menu" id="menu" role="menu" hidden>
-      <button class="menu-row" id="settingsBtn" type="button" role="menuitem"><svg width="22" height="22" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.45" stroke-linecap="round" aria-hidden="true"><path d="M3 6h8M15 6h2M3 14h2M9 14h8"/><circle cx="13" cy="6" r="2"/><circle cx="7" cy="14" r="2"/></svg><span>Settings</span></button>
+      <button class="menu-row" id="settingsBtn" type="button" role="menuitem"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 2.9 19.9 7.45v9.1L12 21.1l-7.9-4.55v-9.1z"/><circle cx="12" cy="12" r="3"/></svg><span>Settings</span></button>
       <button class="menu-row" id="version" type="button" role="menuitem" data-state="available" hidden><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 11v5.5"/><circle cx="12" cy="7.7" r=".5" fill="currentColor"/></svg><span>Update available</span></button>
       <button class="menu-row" id="aboutBtn" type="button" role="menuitem"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 11v5.5"/><circle cx="12" cy="7.7" r=".5" fill="currentColor"/></svg><span>About</span></button>
     </div>
@@ -69,7 +69,7 @@
       <div class="quick-row">
         <input class="box" id="quickBox" type="text" placeholder="Add a task" enterkeyhint="done" autocapitalize="sentences" aria-label="Add a task. Try: Call mum tomorrow 5pm">
         <button class="add" type="submit" aria-label="Add">
-          <svg width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M9 3v12M3 9h12"/></svg>
+          <svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M10 4v12M4 10h12"/></svg>
         </button>
       </div>
     </form>
@@ -96,7 +96,7 @@
   <form class="quick page-quick" id="listQuick" autocomplete="off">
     <div class="quick-row">
       <input class="box" id="listBox" type="text" placeholder="Add to this list" enterkeyhint="done" autocapitalize="sentences" aria-label="Add to this list">
-      <button class="add" type="submit" aria-label="Add"><svg width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M9 3v12M3 9h12"/></svg></button>
+      <button class="add" type="submit" aria-label="Add"><svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M10 4v12M4 10h12"/></svg></button>
     </div>
   </form>
 </dialog>
@@ -117,11 +117,12 @@
     <div class="card">
       <div class="row"><label class="row-hit"><span class="row-k">Date</span><span class="row-v" aria-hidden="true" id="vDue"></span><input class="over" id="fDue" type="date"></label><button class="row-x" id="xDue" type="button" aria-label="Clear the date" hidden><svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M2.5 2.5l7 7M9.5 2.5l-7 7"/></svg></button></div>
       <div class="row"><label class="row-hit"><span class="row-k">Time</span><span class="row-v" aria-hidden="true" id="vTime"></span><input class="over" id="fTime" type="time"></label><button class="row-x" id="xTime" type="button" aria-label="Clear the time" hidden><svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M2.5 2.5l7 7M9.5 2.5l-7 7"/></svg></button></div>
-      <div class="row"><label class="row-hit"><span class="row-k">Repeat</span><span class="row-v" aria-hidden="true" id="vRepeat"></span>
-        <select class="over" id="fRepeat">
+      <!-- Each choice row is a button beside its hidden <select>, which stays what the code reads and sets: the menu is made from it (app.js, drop-downs). -->
+      <div class="row">
+        <select id="fRepeat" aria-label="Repeat" hidden>
           <option value="">Never</option><option value="1 day">Daily</option><option value="1 weekdays">Weekdays</option><option value="1 week">Weekly</option><option value="1 days">Certain days</option>
           <option value="2 week">Every 2 weeks</option><option value="1 month">Monthly</option><option value="3 month">Every 3 months</option><option value="1 year">Yearly</option>
-        </select></label></div>
+        </select><button class="row-hit" type="button" data-pick="fRepeat" aria-haspopup="menu" aria-expanded="false" aria-controls="pickMenu"><span class="row-k">Repeat</span><span class="row-v chev" id="vRepeat"></span></button></div>
       <div class="row days" id="fDaysRow" hidden><div class="week" id="fDays" role="group" aria-label="Days of the week"></div></div>
       <div class="row" id="fUntilWrap" hidden><label class="row-hit"><span class="row-k">Until</span><span class="row-v" aria-hidden="true" id="vUntil"></span><input class="over" id="fUntil" type="date"></label><button class="row-x" id="xUntil" type="button" aria-label="Repeat for ever" hidden><svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M2.5 2.5l7 7M9.5 2.5l-7 7"/></svg></button></div>
     </div>
@@ -129,21 +130,21 @@
     <p class="sec">Reminders</p>
     <div class="card">
       <div class="rows-in" id="fReminders"></div>
-      <div class="row adder"><label class="row-hit"><span class="row-k">Add a reminder</span>
-        <select class="over" id="fAddReminder" aria-label="Add a reminder">
+      <div class="row adder">
+        <select id="fAddReminder" aria-label="Add a reminder" hidden>
           <option value="">Add a reminder</option><option value="0">At the time</option><option value="10">10 min before</option><option value="30">30 min before</option>
           <option value="60">1 hour before</option><option value="1440">1 day before</option><option value="10080">1 week before</option><option value="custom">Pick a date and time</option>
-        </select></label></div>
+        </select><button class="row-hit" type="button" data-pick="fAddReminder" data-pick-action aria-haspopup="menu" aria-expanded="false" aria-controls="pickMenu"><span class="row-k">Add a reminder</span><span class="row-v chev" aria-hidden="true"></span></button></div>
       <div class="row" id="fCustomRow" hidden><label class="row-hit"><span class="row-k">Date and time</span><span class="row-v" aria-hidden="true">Pick</span><input class="over" id="fCustom" type="datetime-local" aria-label="Reminder date and time"></label></div>
       <label class="row tall"><span class="row-k"><b>Ring like a call</b><small>Takes over the screen until you deal with it. For the urgent ones.</small></span><input class="switch" id="fLoud" type="checkbox" role="switch"></label>
-      <div class="row"><label class="row-hit"><span class="row-k">Keep nudging</span><span class="row-v" aria-hidden="true" id="vNag"></span>
-        <select class="over" id="fNag" aria-label="Keep nudging until done"><option value="0">Off</option><option value="5">Every 5 minutes</option><option value="15">Every 15 minutes</option><option value="30">Every 30 minutes</option><option value="60">Every hour</option></select></label></div>
+      <div class="row">
+        <select id="fNag" aria-label="Keep nudging until done" hidden><option value="0">Off</option><option value="5">Every 5 minutes</option><option value="15">Every 15 minutes</option><option value="30">Every 30 minutes</option><option value="60">Every hour</option></select><button class="row-hit" type="button" data-pick="fNag" aria-haspopup="menu" aria-expanded="false" aria-controls="pickMenu"><span class="row-k">Keep nudging</span><span class="row-v chev" id="vNag"></span></button></div>
     </div>
     <button class="warn" id="fLoudFix" type="button" hidden></button>
 
     <div class="card">
-      <div class="row"><label class="row-hit"><span class="row-k">List</span><span class="row-v" aria-hidden="true" id="vList"></span><select class="over" id="fList" aria-label="List"></select></label></div>
-      <div class="row"><label class="row-hit"><span class="row-k">Priority</span><span class="row-v" aria-hidden="true" id="vPri"></span><select class="over" id="fPri" aria-label="Priority"><option value="0">None</option><option value="1">High</option><option value="2">Urgent</option></select></label></div>
+      <div class="row"><select id="fList" aria-label="List" hidden></select><button class="row-hit" type="button" data-pick="fList" aria-haspopup="menu" aria-expanded="false" aria-controls="pickMenu"><span class="row-k">List</span><span class="row-v chev" id="vList"></span></button></div>
+      <div class="row"><select id="fPri" aria-label="Priority" hidden><option value="0">None</option><option value="1">High</option><option value="2">Urgent</option></select><button class="row-hit" type="button" data-pick="fPri" aria-haspopup="menu" aria-expanded="false" aria-controls="pickMenu"><span class="row-k">Priority</span><span class="row-v chev" id="vPri"></span></button></div>
     </div>
 
     <p class="sec">Steps</p>
@@ -158,7 +159,10 @@
 <dialog class="page" id="findPage" aria-label="Search">
   <div class="page-head">
     <button class="icon-btn back" type="button" data-close aria-label="Back"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12H3M10.5 4.5 3 12l7.5 7.5"/></svg></button>
-    <input class="box grow" id="findBox" type="search" placeholder="Search tasks" autocomplete="off">
+    <div class="find-wrap">
+      <input class="box grow" id="findBox" type="search" placeholder="Search tasks" autocomplete="off">
+      <button class="find-clear" id="findClear" type="button" aria-label="Clear" hidden><svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M2.5 2.5l7 7M9.5 2.5l-7 7"/></svg></button>
+    </div>
   </div>
   <div class="page-body" id="findBody"></div>
 </dialog>
@@ -177,10 +181,10 @@
     <div class="group">
       <p class="label">Reminders</p>
       <div class="card">
-        <div class="row"><label class="row-hit"><span class="row-k">New tasks with a date</span><span class="row-v" aria-hidden="true" id="vDefault"></span>
-          <select class="over" id="sDefault" aria-label="Reminder for new tasks with a date"><option value="">No reminder</option><option value="0">At the time</option><option value="10">10 min before</option><option value="30">30 min before</option><option value="60">1 hour before</option><option value="1440">1 day before</option></select></label></div>
-        <div class="row"><label class="row-hit"><span class="row-k">Morning summary</span><span class="row-v" aria-hidden="true" id="vSummary"></span>
-          <select class="over" id="sSummary" aria-label="Morning summary"><option value="">Off</option><option value="07:00">7am</option><option value="08:00">8am</option><option value="09:00">9am</option></select></label></div>
+        <div class="row">
+          <select id="sDefault" aria-label="Reminder for new tasks with a date" hidden><option value="">No reminder</option><option value="0">At the time</option><option value="10">10 min before</option><option value="30">30 min before</option><option value="60">1 hour before</option><option value="1440">1 day before</option></select><button class="row-hit" type="button" data-pick="sDefault" aria-haspopup="menu" aria-expanded="false" aria-controls="pickMenu"><span class="row-k">New tasks with a date</span><span class="row-v chev" id="vDefault"></span></button></div>
+        <div class="row">
+          <select id="sSummary" aria-label="Morning summary" hidden><option value="">Off</option><option value="07:00">7am</option><option value="08:00">8am</option><option value="09:00">9am</option></select><button class="row-hit" type="button" data-pick="sSummary" aria-haspopup="menu" aria-expanded="false" aria-controls="pickMenu"><span class="row-k">Morning summary</span><span class="row-v chev" id="vSummary"></span></button></div>
       </div>
     </div>
     <div class="group">
@@ -205,7 +209,7 @@
     </div>
     <div class="page-body about">
       <div class="about-id">
-        <svg width="68" height="68" viewBox="18 18 72 72" aria-hidden="true"><rect x="18" y="18" width="72" height="72" rx="17" fill="#E5533D"/><g transform="translate(0 -3)"><path d="M54,28C42,28 35,37 35,49V62L29.5,71C28.5,72.7 29.7,75 31.7,75H76.3C78.3,75 79.5,72.7 78.5,71L73,62V49C73,37 66,28 54,28ZM42.17,55.33L49.17,62.33A3.3,3.3 0 0 0 54.03,62.11L66.53,47.11A3.3,3.3 0 0 0 61.47,42.89L51.28,55.12L46.83,50.67A3.3,3.3 0 0 0 42.17,55.33Z" fill="#FFFFFF" fill-rule="evenodd"/><path d="M46,79.5a8,8 0 0 0 16,0Z" fill="#FFFFFF"/></g></svg>
+        <svg width="52" height="52" viewBox="18 18 72 72" aria-hidden="true"><rect x="18" y="18" width="72" height="72" rx="17" fill="#E5533D"/><g transform="translate(0 -3)"><path d="M54,28C42,28 35,37 35,49V62L29.5,71C28.5,72.7 29.7,75 31.7,75H76.3C78.3,75 79.5,72.7 78.5,71L73,62V49C73,37 66,28 54,28ZM42.17,55.33L49.17,62.33A3.3,3.3 0 0 0 54.03,62.11L66.53,47.11A3.3,3.3 0 0 0 61.47,42.89L51.28,55.12L46.83,50.67A3.3,3.3 0 0 0 42.17,55.33Z" fill="#FFFFFF" fill-rule="evenodd"/><path d="M46,79.5a8,8 0 0 0 16,0Z" fill="#FFFFFF"/></g></svg>
         <p class="about-name">Nudge</p>
         <p class="about-tag">To-do lists with reminders that ring.</p>
       </div>
@@ -241,7 +245,10 @@
   </div>
 </dialog>
 
+<!-- The one drop-down: app.js moves it into the page whose row opened it, fills it and places it -->
+<div class="menu pick" id="pickMenu" role="menu" hidden></div>
+
 <script src="lib.js?v=6"></script>
-<script src="app.js?v=15"></script>
+<script src="app.js?v=18"></script>
 </body>
 </html>
