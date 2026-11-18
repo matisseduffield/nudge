@@ -692,3 +692,57 @@ test('on iPhone a reminder that has just rung stays while its extra rings are du
   assert.deepEqual(L.schedule({ tasks: [t], prefs: {} }, NOW), []);
   assert.equal(L.schedule({ tasks: [t], prefs: {} }, NOW, true).length, 1);
 });
+
+test('a bare "at 8" or "at 9" said after that morning hour means that evening', () => {
+  const at = (h, m, text, use24) => { const p = L.parseQuick(text, new Date(2026, 10, 9, h, m), [], { use24 }); return [p.title, p.due, p.time]; };   // Mon 9 Nov
+  const MON = '2026-11-09', TUE = '2026-11-10';
+  // Each at 7am, at 2:20pm and at 10:30pm.
+  const through = (text, morning, afternoon, late) => assert.deepEqual(
+    [at(7, 0, text), at(14, 20, text), at(22, 30, text)].map(p => p.slice(1)), [morning, afternoon, late], text);
+  // A bare 8 or 9: the morning while it's to come, the evening once it has gone, and
+  // tomorrow morning once both have.
+  through('Dinner at 8', [MON, '08:00'], [MON, '20:00'], [TUE, '08:00']);
+  through('Dinner at 9', [MON, '09:00'], [MON, '21:00'], [TUE, '09:00']);
+  through('Dinner at 8:30', [MON, '08:30'], [MON, '20:30'], [TUE, '08:30']);
+  through('Dinner at 9:15', [MON, '09:15'], [MON, '21:15'], [TUE, '09:15']);
+  // 10 and 11 are the morning, as they always were.
+  through('Call at 10', [MON, '10:00'], [TUE, '10:00'], [TUE, '10:00']);
+  through('Call at 11', [MON, '11:00'], [TUE, '11:00'], [TUE, '11:00']);
+  // Two digits and a colon is a time off a clock, taken as written.
+  through('Call at 10:00', [MON, '10:00'], [TUE, '10:00'], [TUE, '10:00']);
+  through('Call at 10:30', [MON, '10:30'], [TUE, '10:30'], [TUE, '10:30']);
+  through('Call at 11:15', [MON, '11:15'], [TUE, '11:15'], [TUE, '11:15']);
+  through('Dinner at 08:00', [MON, '08:00'], [TUE, '08:00'], [TUE, '08:00']);
+  through('Call 10:30', [MON, '10:30'], [TUE, '10:30'], [TUE, '10:30']);
+  assert.equal(at(14, 20, 'Dinner at 8')[0], 'Dinner');
+  // On the stroke of 8 the morning's has gone.
+  assert.deepEqual(at(8, 0, 'Dinner at 8'), ['Dinner', MON, '20:00']);
+  assert.deepEqual(at(14, 20, 'Dinner today at 8'), ['Dinner', MON, '20:00']);
+  // Said outright, it's what was said.
+  assert.deepEqual(at(14, 20, 'Dinner at 8am'), ['Dinner', TUE, '08:00']);
+  assert.deepEqual(at(14, 20, 'Dinner at 8pm'), ['Dinner', MON, '20:00']);
+  assert.deepEqual(at(14, 20, 'Dinner at 8 in the morning'), ['Dinner', TUE, '08:00']);
+  // Another day's morning hasn't gone.
+  assert.deepEqual(at(14, 20, 'Dinner tomorrow at 8'), ['Dinner', TUE, '08:00']);
+  assert.deepEqual(at(14, 20, 'Dinner at 8 on friday'), ['Dinner', '2026-11-13', '08:00']);
+  // A repeat is for every day, not only this one.
+  assert.deepEqual(at(14, 20, 'Walk every day at 8'), ['Walk', MON, '08:00']);
+  // On the 24-hour clock 8 is 08:00.
+  assert.deepEqual(at(14, 20, 'Dinner at 8', true), ['Dinner', TUE, '08:00']);
+  assert.deepEqual(at(14, 20, 'Dinner at 8:30', true), ['Dinner', TUE, '08:30']);
+  // Hours that were never in doubt are as they were.
+  assert.deepEqual(at(14, 20, 'Lunch at 12'), ['Lunch', TUE, '12:00']);
+  assert.deepEqual(at(14, 20, 'Tea at 3'), ['Tea', MON, '15:00']);
+});
+
+test('a task has a reminder to come only while one can still ring', () => {
+  // The row's bell and the editor's "Passed" go by this: what firings() has left.
+  const gone = task({ due: '2026-11-06', reminders: [{ before: 0 }] });   // 9am, and it's 10am
+  assert.equal(L.firings(gone, NOW).length, 0);
+  assert.equal(L.firings({ ...gone, due: '2026-11-07' }, NOW).length > 0, true);
+  // A daily one whose ring today has gone rings again tomorrow.
+  assert.equal(L.firings({ ...gone, repeat: { every: 1, unit: 'day' } }, NOW)[0].at, '2026-11-07T09:00');
+  // One reminder gone and one to come.
+  const two = task({ due: '2026-11-06', time: '10:30', reminders: [{ before: 60 }, { before: 0 }] });
+  assert.deepEqual(two.reminders.map(r => L.firings({ ...two, reminders: [r] }, NOW).length), [0, 1]);
+});

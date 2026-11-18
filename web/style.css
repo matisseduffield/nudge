@@ -94,6 +94,8 @@ p, h1, h2 { margin: 0; }
 .icon-btn:active { background: var(--key-down); }
 @media (hover: hover) { .icon-btn:hover { background: var(--key); } }
 .icon-btn.danger { color: var(--neg); }
+/* A task's tick, in its page's head: green once it's done, as its row's is. */
+.icon-btn.ticked { background: var(--pos); box-shadow: none; color: var(--on-ink); }
 /* Edit, while a list is being edited: the way out, said in a word. */
 .icon-btn .lbl { display: none; }
 .icon-btn.on { width: auto; padding: 0 18px; border-radius: 99px; background: var(--accent); box-shadow: none; font-size: .95rem; font-weight: 500; color: var(--on-ink); }
@@ -131,13 +133,17 @@ html.kbd .row:has(> button.row-hit:focus-visible) { outline: 2px solid var(--acc
 /* Today, Upcoming, Lists: a pill track with a raised pill for the one in view. */
 .modes { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-top: 6px; }
 /* The same switch as every app's: a 40px track, a 34px pill, and a tap area that reaches past both. */
-.tabs { flex: none; display: flex; gap: 2px; padding: 3px; border-radius: 99px; background: var(--surface); }
-.tab { position: relative; min-height: 34px; padding: 0 15px; background: none; border: 0; border-radius: 99px; font-size: .92rem; font-weight: 500; color: var(--muted); white-space: nowrap; }
-.tab::before { content: ""; position: absolute; inset: -8px 0; }
+/* The 15px each side of a word is a column of its own, which gives way, to nothing if need be,
+   when the phone's text is so large that the three wouldn't fit: the words stay whole and on the screen. */
+.tabs { flex: 0 1 auto; min-width: 0; display: flex; gap: 2px; padding: 3px; border-radius: 99px; background: var(--surface); }
+.tab { position: relative; display: grid; grid-template-columns: minmax(0, 15px) auto minmax(0, 15px); align-items: center; min-height: 34px; padding: 0; background: none; border: 0; border-radius: 99px; font-size: .92rem; font-weight: 500; color: var(--muted); white-space: nowrap; }
+.tab::before { content: ""; }
+.tab::after { content: ""; position: absolute; inset: -8px 0; }
 @media (hover: hover) { .tab:hover { color: var(--ink); } }
 /* The track is card-coloured, so the chosen pill takes the lighter key. */
 .tab[aria-selected="true"] { background: linear-gradient(var(--skey-hi), var(--skey)); box-shadow: var(--rim); color: var(--ink); }
-.meta { min-width: 0; padding-right: 4px; font-size: .84rem; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+/* The date gives way before the tabs do. */
+.meta { flex-shrink: 99; min-width: 0; padding-right: 4px; font-size: .84rem; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
 .update { flex: none; display: grid; gap: 14px; margin-top: 10px; padding: 20px; background: var(--surface); border-radius: 24px; }
 .update-title { font-size: 1.06rem; font-weight: 500; line-height: 1.3; }
@@ -201,8 +207,7 @@ button.tick { align-self: stretch; display: grid; place-items: center; width: 56
 /* An empty page: a grey line about it, and the rest left empty. */
 .blank { display: grid; gap: 2px; margin-top: 14px; padding: 28px 20px; text-align: center; }
 .ghost { display: none; }
-.blank-t { font-size: .94rem; color: var(--ink); text-wrap: balance; }
-.blank-s { font-size: .94rem; color: var(--muted); text-wrap: balance; }
+.blank-t { font-size: .94rem; color: var(--ink); text-wrap: balance; overflow-wrap: anywhere; }
 
 /* ---- today: the day in a card, the date as its label, and a ring that fills as it gets done ---- */
 .day { display: flex; align-items: center; justify-content: space-between; gap: 16px; min-height: 100px; margin-top: 14px; padding: 18px 22px; background: var(--surface); border-radius: 24px; }
@@ -228,7 +233,6 @@ button.tick { align-self: stretch; display: grid; place-items: center; width: 56
 .how-task b { display: block; font-size: 1.06rem; font-weight: 400; line-height: 1.3; }
 .how-task small { display: flex; align-items: center; font-size: .84rem; color: var(--muted); }
 .how-task u { width: 8px; height: 8px; margin: 0 5px 0 10px; border-radius: 50%; }
-.how + .empty { padding-top: 20px; }
 @keyframes caret { 50% { opacity: 0; } }
 @keyframes how-in { from { opacity: 0; transform: translateY(-4px); } }
 @media (prefers-reduced-motion: reduce) { .how-type::after, .how-task { animation: none; } }
@@ -353,7 +357,7 @@ a.about-row::after, #aboutRow::after { content: ""; flex: none; width: 9px; heig
 /* Questions: a rounded sheet, with the two answers as pills. */
 dialog.ask { width: min(360px, calc(100vw - 32px)); padding: 22px; border: 0; border-radius: 28px; background: var(--surface); color: var(--ink); }
 dialog.ask::backdrop { background: var(--backdrop); }
-dialog.ask h2 { margin-bottom: 8px; font-size: 1.2rem; font-weight: 500; line-height: 1.3; }
+dialog.ask h2 { margin-bottom: 8px; font-size: 1.2rem; font-weight: 500; line-height: 1.3; overflow-wrap: anywhere; }
 .ask-text { font-size: .96rem; line-height: 1.5; color: var(--muted); }
 .row.swatches { justify-content: space-between; gap: 6px; min-height: 68px; }
 /* They give a little on a narrow screen rather than run off it. */
@@ -439,7 +443,7 @@ button.row-hit:not(:disabled):active { background: var(--key-down); }
 /* The ring goes round the whole panel, so it follows its corners rather than being cut by them. */
 .card:has(.row-in:focus-visible) { box-shadow: inset 0 0 0 2px var(--accent); }
 .row-in::placeholder, .title-in::placeholder, .notes-in::placeholder { color: var(--muted); }
-.title-in { display: block; width: 100%; padding: 18px 20px 4px; background: none; border: 0; font-size: 1.2rem; font-weight: 500; line-height: 1.3; letter-spacing: -.01em; text-overflow: ellipsis; outline: none; }
+.title-in { display: block; width: 100%; padding: 18px 20px 4px; background: none; border: 0; font-size: 1.2rem; font-weight: 500; line-height: 1.3; letter-spacing: -.01em; resize: none; overflow: hidden; outline: none; }
 .notes-in { display: block; width: 100%; min-height: 2.6em; padding: 2px 20px 18px; background: none; border: 0; resize: none; overflow: hidden; line-height: 1.45; color: var(--ink); outline: none; }
 /* Under 16px, an iPhone zooms the page in when the box is tapped. */
 @supports (-webkit-touch-callout: none) { .notes-in { font-size: 1rem; } }

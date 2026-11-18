@@ -68,12 +68,20 @@
     $('toastText').textContent = text;
     $('toastUndo').hidden = !restore;
     $('toast').hidden = false;
-    // Over a page, the footer can't be reached, so the message goes on the page.
-    const page = openDialog();
+    placeToast();
+    toastTimer = setTimeout(() => { $('toast').hidden = true; undo = null; }, 5000);
+  }
+  // Over a page, the footer can't be reached, so the message goes on the page: the one on
+  // top, and it follows as pages open and close, so Undo stays in reach. A question isn't a
+  // page, and the message waits behind it.
+  function placeToast() {
+    if ($('toast').hidden) return;
+    const page = topPage();
+    // Already there: left alone, so it isn't read out again.
+    if ($('toast').parentNode === (page || document.querySelector('footer'))) return;
     // On iPhone it sits above the page's add box, clear of the home bar.
     const quick = ios && page ? page.querySelector('.page-quick') : null;
     if (quick) quick.before($('toast')); else if (page) page.append($('toast')); else document.querySelector('footer').prepend($('toast'));
-    toastTimer = setTimeout(() => { $('toast').hidden = true; undo = null; }, 5000);
   }
   $('toastUndo').addEventListener('click', () => {
     if (undo) undo();
@@ -82,6 +90,14 @@
   });
 
   // ---- drawing a task ----
+  // On Android a reminder set to keep nudging goes on after its time until it's dealt with,
+  // and only the phone knows if it has been: it counts as still ringing, as Alarms.keep has it.
+  const nudging = t => !ios && L.isOpen(t) && L.nagOf(t) > 0 && t.reminders.length > 0;
+  // Whether anything is still to ring. A reminder whose time has gone by isn't one.
+  const rings = t => L.firings(t, now(), 60, false, ios).length > 0 || nudging(t);
+  // The tasks drawn with a bell, to tell when one has rung its last while the app sits open.
+  const bells = () => state.tasks.filter(rings).map(t => t.id).join();
+  let belled = '';
   // Under a heading that already says the day, the row leaves it out.
   function subline(t, showList = true, headed = null) {
     const sub = el('div', 'sub');
@@ -91,7 +107,7 @@
       if (when) sub.append(el('span', !t.done && t.due < day ? 'late' : '', when));
     }
     if (t.repeat) { const s = el('span'); s.innerHTML = ICON.repeat; s.append(L.repeatText(t.repeat)); sub.append(s); }
-    if (t.reminders.length) {
+    if (rings(t)) {
       const s = el('span', t.loud ? 'loud' : '');
       s.innerHTML = ICON.bell;
       if (t.loud) s.append('Rings like a call');
@@ -187,15 +203,14 @@
       <div class="how-task" aria-hidden="true"><i></i><span><b>Call mum</b><small>Tomorrow, ${L.timeText('17:00', state.prefs.use24)}<u style="background:${home ? home.colour : 'var(--pos)'}"></u>Home</small></span></div>`;
     return box;
   }
-  // An empty page: the outline of the tasks that will be here, fading out, and a line about it.
-  function blank(title, sub, colour) {
+  // An empty page: the outline of the tasks that will be here, fading out, and a line saying so.
+  function blank(title, colour) {
     const box = el('div', 'blank');
     const ghost = el('div', 'ghost');
     ghost.setAttribute('aria-hidden', 'true');
     for (const w of [58, 42, 66]) { const r = el('i'); r.append(el('u'), el('s')); r.lastChild.style.width = w + '%'; ghost.append(r); }
     if (colour) ghost.style.setProperty('--tint', colour);
     box.append(ghost, el('p', 'blank-t', title));
-    if (sub) box.append(el('p', 'blank-s', sub));
     return box;
   }
   function renderToday() {
@@ -212,9 +227,9 @@
     if (out.length === 1) {
       // Nothing for today: the next things due, so the day isn't a blank page.
       const next = L.upcoming(state.tasks, now()).days.flatMap(d => d.tasks).slice(0, 3);
-      if (!state.tasks.some(t => !t.deleted)) out.push(howTo(), el('p', 'empty', 'Type a task below.'));
+      if (!state.tasks.some(t => !t.deleted)) out.push(howTo());
       else if (next.length && !done.length) out.push(head('Next up'), taskList(next));
-      else if (!done.length) out.push(blank('Nothing due today', 'Add a task below.'));
+      else if (!done.length) out.push(blank('Nothing due today'));
     }
     if (done.length) {
       out.push(folded('Done today', done.length, showDoneToday, 'doneToday', 'tasks done today'));
@@ -240,7 +255,7 @@
     const out = [week];
     for (const d of days) { const h = head(L.dayText(d.date, now())); h.dataset.at = d.date; out.push(h, taskList(d.tasks, true, false, d.date)); }
     if (someday.length) out.push(head('No date'), taskList(someday));
-    if (out.length === 1) out.push(blank('Nothing coming up', 'Tasks you add show here by day.'));
+    if (out.length === 1) out.push(blank('Nothing coming up'));
     return out;
   }
   function renderLists() {
@@ -273,6 +288,7 @@
     // Overdue has its own heading, so this always says the day.
     $('meta').textContent = new Intl.DateTimeFormat('en-AU', { weekday: 'short', day: 'numeric', month: 'short' }).format(now());
     fitMeta();
+    belled = bells();
     $('view').replaceChildren(...{ today: renderToday, upcoming: renderUpcoming, lists: renderLists }[tab]());
     if ($('listPage').open) renderListPage();
     if ($('findPage').open) renderFind();
@@ -377,8 +393,10 @@
     const q = parseQuick(text);
     if (!q.title) return null;
     if (q.listName && !q.list) {
-      const made = { id: L.newId(now()), name: q.listName[0].toUpperCase() + q.listName.slice(1), colour: COLOURS[state.lists.length % COLOURS.length] };
-      state.lists = [...state.lists, made];
+      // No longer than a name typed on the list's own page can be, and one cut short is found again.
+      const name = (q.listName[0].toUpperCase() + q.listName.slice(1)).slice(0, 30);
+      const made = state.lists.find(l => l.name === name) || { id: L.newId(now()), name, colour: COLOURS[state.lists.length % COLOURS.length] };
+      if (!listOf(made.id)) state.lists = [...state.lists, made];
       q.list = made.id;
     }
     const t = L.makeTask({ ...q, list: q.list || list || null }, now(), state.prefs);
@@ -435,7 +453,7 @@
     $('listForm').hidden = !listEditing;
     if (listEditing) drawSwatches(list.colour);
     const out = [];
-    out.push(open.length ? taskList(open, false, listEditing) : blank(done.length ? 'All done' : `Nothing in ${list ? list.name : "this list"} yet`, done.length ? '' : 'Add the first task below.', list && list.colour));
+    out.push(open.length ? taskList(open, false, listEditing) : blank(done.length ? 'All done' : `Nothing in ${list ? list.name : "this list"} yet`, list && list.colour));
     if (done.length) {
       out.push(folded('Completed', done.length, showDone, 'doneToggle', 'completed tasks', [action('Clear', 'clearDone', 'Clear completed tasks')]));
       if (showDone) out.push(taskList(done, false));
@@ -451,13 +469,12 @@
     renderListPage();
     show('listPage');
   }
-  // It opens ready to name, the name selected to type over.
+  // It opens in edit mode, ready to name. The keyboard waits for a tap on the name.
   function newList() {
     draft = { id: L.newId(now()), name: 'New list', colour: COLOURS[state.lists.length % COLOURS.length] };
     openList(draft.id, true);
-    if (ios) return;
-    $('listName').focus();
-    $('listName').select();
+    // Empty, so Name shows and typing starts clean. Left empty, it stays New list.
+    $('listName').value = '';
   }
   function setList(change) {
     if (draft) { draft = { ...draft, ...change }; keepDraft(); return; }
@@ -634,10 +651,13 @@
     $('fList').value = t.list || '';
     $('fCustomRow').hidden = true;
     drawTaskExtras();
+    // The tick in the head stands as the row's does.
+    $('taskTick').classList.toggle('ticked', !!t.done);
+    $('taskTick').setAttribute('aria-label', t.done ? 'Mark not done' : 'Mark done');
     $('taskPage').querySelector('.page-body').scrollTop = 0;   // each task opens at its title
     show('taskPage');
-    // Sized once the page is showing; hidden, it measures nothing.
-    requestAnimationFrame(fitNotes);
+    // Sized once the page is showing; hidden, they measure nothing.
+    requestAnimationFrame(fitText);
   }
   function drawTaskExtras() {
     const t = task(editing);
@@ -671,7 +691,10 @@
       b.dataset.dropReminder = i;
       b.setAttribute('aria-label', `Remove reminder: ${text}`);
       b.innerHTML = ICON.cross;
-      row.append(el('span', 'row-k', text), b);
+      row.append(el('span', 'row-k', text));
+      // One with nothing left to ring says so, rather than standing as if it were to come.
+      if (L.isOpen(t) && !nudging(t) && !L.firings({ ...t, reminders: [r], snooze: null }, now(), 60, false, ios).length) row.append(el('span', 'row-v', 'Passed'));
+      row.append(b);
       return row;
     }));
     $('fSubs').replaceChildren(...t.subs.map(s => {
@@ -710,7 +733,8 @@
     $('xTime').hidden = !t.time;
     $('xUntil').hidden = !t.repeat?.until;
   }
-  function fitNotes() { $('fNotes').style.height = ''; $('fNotes').style.height = `${$('fNotes').scrollHeight}px`; }
+  // The title and the notes are as tall as what's in them.
+  function fitText() { for (const box of [$('fTitle'), $('fNotes')]) { box.style.height = ''; box.style.height = `${box.scrollHeight}px`; } }
   // A clear button empties its field as if it had been cleared by hand.
   for (const [x, field] of [['xDue', 'fDue'], ['xTime', 'fTime'], ['xUntil', 'fUntil']]) {
     // Focus stays on the row, as the button that was pressed goes away.
@@ -720,7 +744,17 @@
   for (const input of document.querySelectorAll('input.over')) {
     input.addEventListener('click', () => { try { input.showPicker(); } catch {} });
   }
-  $('fNotes').addEventListener('input', fitNotes);
+  $('fNotes').addEventListener('input', fitText);
+  // A title is one line of words, however many lines it runs to: Enter puts the keyboard
+  // away, as it does for a list's name, and a pasted line break becomes a space.
+  $('fTitle').addEventListener('input', () => {
+    if ($('fTitle').value.includes('\n')) $('fTitle').value = $('fTitle').value.replace(/\s*\n\s*/g, ' ');
+    fitText();
+  });
+  // Turned on its side, or the text made larger, the lines break somewhere else.
+  window.addEventListener('resize', () => { if ($('taskPage').open) fitText(); });
+  $('fTitle').addEventListener('keydown', e => { if (e.key === 'Enter' && !e.isComposing) { e.preventDefault(); $('fTitle').blur(); } });
+  $('fTitle').addEventListener('beforeinput', e => { if (e.inputType === 'insertLineBreak' || e.inputType === 'insertParagraph') { e.preventDefault(); $('fTitle').blur(); } });
   const edit = change => {
     const t = L.edited(task(editing), change);
     // Ringing like a call goes with the last reminder, or adding one later would bring it back unseen.
@@ -840,6 +874,12 @@
     if (tick) edit({ subs: t.subs.map(s => (s.id === tick.dataset.stepTick ? { ...s, done: !s.done } : s)) });
     if (drop) edit({ subs: t.subs.filter(s => s.id !== drop.dataset.stepDrop) });
   });
+  // The tick in the head does what the row's does, Undo and all, and goes back to the list.
+  $('taskTick').addEventListener('click', () => {
+    const id = editing;
+    $('taskPage').close();
+    toggle(id);
+  });
   $('taskDelete').addEventListener('click', () => {
     const id = editing;
     setTask(id, { deleted: +now() });
@@ -869,7 +909,6 @@
     $('findBox').value = '';
     renderFind();
     show('findPage');
-    if (!ios) $('findBox').focus();
   });
   $('findBox').addEventListener('input', renderFind);
   // Clear empties the field as if by hand, and the field keeps the focus.
@@ -959,12 +998,14 @@
   $('settingsBtn').addEventListener('click', openSettings);
   const pref = change => { state.prefs = { ...state.prefs, ...change }; commit(); };
   function settingsValues() {
+    // The summary's times are written as every other time is, 24-hour or not.
+    for (const o of $('sSummary').options) if (o.value) o.textContent = L.timeText(o.value, state.prefs.use24);
     value('vDefault', chosen($('sDefault')), $('sDefault').value !== '');
     value('vSummary', chosen($('sSummary')), $('sSummary').value !== '');
   }
   $('sDefault').addEventListener('change', () => { pref({ defaultReminder: $('sDefault').value === '' ? null : Number($('sDefault').value) }); settingsValues(); });
   $('sSummary').addEventListener('change', () => { pref({ summary: $('sSummary').value || null }); settingsValues(); });
-  $('s24').addEventListener('change', () => pref({ use24: $('s24').checked }));
+  $('s24').addEventListener('change', () => { pref({ use24: $('s24').checked }); settingsValues(); });
 
   // ---- Android app bridge (absent in a browser) ----
   const stack = [];
@@ -977,6 +1018,7 @@
     if (!d.open) {
       d.showModal(); stack.push(d);
       if (touch.matches) { d.tabIndex = -1; d.focus({ preventScroll: true }); }
+      placeToast();
     }
     tellBack();
   }
@@ -984,6 +1026,10 @@
   function openDialog() {
     while (stack.length && !stack[stack.length - 1].open) stack.pop();
     return stack[stack.length - 1];
+  }
+  // The page on top, under any question that's over it.
+  function topPage() {
+    return stack.filter(d => d.open && d.classList.contains('page')).pop();
   }
   function toApp(msg) {
     if (!app) return;
@@ -998,7 +1044,7 @@
     return false;
   };
   function tellBack() { toApp({ type: 'back', enabled: pickOpen() || !!openDialog() }); }
-  for (const d of document.querySelectorAll('dialog')) d.addEventListener('close', tellBack);
+  for (const d of document.querySelectorAll('dialog')) d.addEventListener('close', () => { tellBack(); placeToast(); });
 
   // ---- drop-downs ----
   // Each choice row is a button beside its hidden <select>, which stays the source of truth: the
@@ -1232,7 +1278,12 @@
   // A new day while the app sits open.
   let shown = L.iso(now());
   function checkDay() {
-    if (L.iso(now()) !== shown) { shown = L.iso(now()); commit(); }
+    if (L.iso(now()) !== shown) { shown = L.iso(now()); return commit(); }
+    // A reminder has rung its last, so its bell goes. Only with the lists in plain view and
+    // nothing under a finger, in a field or in a menu, so nothing in use is drawn again.
+    const a = document.activeElement;
+    const busy = openDialog() || pickOpen() || !menu.hidden || lifted || document.querySelector(':active') || (a && (a.matches('input, textarea') || $('view').contains(a)));
+    if (!busy && bells() !== belled) render();
   }
   setInterval(() => { if (!document.hidden) checkDay(); }, 30000);
   document.addEventListener('visibilitychange', () => { if (!document.hidden) checkDay(); });

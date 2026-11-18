@@ -158,7 +158,16 @@
     const DATE_NEXT = `(?=\\s*$|\\s+(?:today|tomorrow|tmrw|tmr|on\\s|next\\s|in\\s+\\d|${LONG_DAY}|${SHORT_DAY}))`;
     // Hours 1 to 7 with no am, pm or part of the day mean the afternoon: nobody means 3:30am.
     // Someone on the 24-hour clock writes what they mean.
-    const guess = (h, m) => { const n = Number(h); return clock(!part && !options.use24 && n >= 1 && n <= 7 ? n + 12 : n, m); };
+    // A bare 8 or 9 is the morning, unless that has gone by: settled below, once the day is known.
+    // Two digits (08:00, 10:30) are a time off a clock, and 10 and 11 are the morning as written.
+    let loose = false;
+    const bareHour = (h, n) => !part && !options.use24 && (n === 8 || n === 9) && h.length === 1;
+    const guess = (h, m) => {
+      const n = Number(h);
+      if (!clock(!part && !options.use24 && n >= 1 && n <= 7 ? n + 12 : n, m)) return false;
+      loose = bareHour(h, n);
+      return true;
+    };
     // "In 20 min", "in 2 hours": that clock time, today or past midnight.
     const inMinutes = n => {
       const at = new Date(+now + n * 60000);
@@ -175,7 +184,9 @@
       || take(new RegExp(`\\s(\\d{2}):(\\d{2})${END}`), m => clock(m[1], m[2]))
       || take(new RegExp(`\\sat\\s+(\\d{1,2})${DATE_NEXT}`), m => {
         const h = Number(m[1]);
-        return clock(!part && h >= 1 && h <= 7 ? h + 12 : h, 0);
+        if (!clock(!part && h >= 1 && h <= 7 ? h + 12 : h, 0)) return false;
+        loose = bareHour(m[1], h);
+        return true;
       })
       || take(/\s(?:at\s+)?noon\b/i, () => { out.time = '12:00'; })
       || take(/\s(?:at\s+)?midnight\b/i, () => { out.time = '00:00'; });
@@ -250,6 +261,12 @@
     if (onDays && !out.due) out.due = onDays.includes(parseDay(today).getDay()) ? today : nextDate(today, out.repeat);
     if (out.repeat && !out.due) out.due = today;
     if (out.repeat) out.due = fitToDays(out.due, out.repeat);
+    // "Dinner at 8", said for today once 8 in the morning has gone, is 8 that evening, if
+    // that's still to come. A repeat is for every day, so it stays as written.
+    if (loose && !out.repeat && (!out.due || out.due === today) && atTime(today, out.time) <= now) {
+      const pm = `${pad(Number(out.time.slice(0, 2)) + 12)}${out.time.slice(2)}`;
+      if (atTime(today, pm) > now) out.time = pm;
+    }
     // A time alone means the next time that clock comes round.
     if (out.time && !out.due) out.due = atTime(today, out.time) > now ? today : addDays(today, 1);
     if (out.repeat && ['month', 'year'].includes(out.repeat.unit) && out.due) out.repeat.dom = parseDay(out.due).getDate();

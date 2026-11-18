@@ -217,7 +217,15 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun readIntent(intent: Intent?) {
-        pendingOpen = intent?.getStringExtra(Alarms.EXTRA_TASK)?.takeIf { it.isNotEmpty() } ?: pendingOpen
+        val task = intent?.getStringExtra(Alarms.EXTRA_TASK)?.takeIf { it.isNotEmpty() }
+        // A tap on its reminder opens the task, and it's been seen, so its nudging stops, as on
+        // the iPhone. Its other reminders stay set. Neither for an old tap that Android hands
+        // back from Recents.
+        if (task != null && intent?.flags?.and(Intent.FLAG_ACTIVITY_LAUNCHED_FROM_HISTORY) == 0) {
+            pendingOpen = task
+            val app = applicationContext
+            disk.execute { Alarms.dismiss(app, task) }
+        }
         if (intent?.getBooleanExtra(TodayWidget.EXTRA_ADD, false) == true) pendingAdd = true
     }
 
