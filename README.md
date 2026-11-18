@@ -11,7 +11,35 @@ Bourse: one palette, Hanken Grotesk, no build step, a web page in an Android she
 - Taps on notifications queue up in `actions.json` until the page next opens.
 - Tasks live in the app's files, so Android's backup carries them to a new phone.
 
-Reminders only ring in the Android app. In a browser it's just a list.
+Reminders ring in the Android app and the iPhone app. In a browser it's just a list.
+
+## The iPhone app
+
+`ios/` is a small Swift shell (XcodeGen, built by `.github/workflows/ios.yml` and
+`ios-release.yml`) that shows the page from inside the app and turns its list of alarms
+into the phone's own notifications (`ios/App/Reminders.swift`). It does not bundle `web/`
+as it is: `scripts/ios-bundle.mjs` makes `ios/bundle/web` (not in git), a copy without
+what the iPhone app doesn't have, and the app bundles that. Left out is every part of
+`index.html`, `style.css`, `app.js` and `lib.js` between these marks:
+
+```
+/* ios:cut */ ... /* ios:end */          in scripts and styles
+<!-- ios:cut --> ... <!-- ios:end -->    in markup
+```
+
+The marks are comments, so the Android app and a browser are not changed by them. Marked
+today: the updater and its card, the widget's list, Android's alarm settings and the
+question before them, ringing like a call, the Back button message, nudging without end,
+what a browser does with no app behind it, and the `ios` flag itself, so the copy has no
+platform switch in it. The script stops the build on a mark without its partner, on a
+file in `web/` it hasn't been told about, and if any word on its `FORBIDDEN` list is
+still in the copy. **Anything new that only the Android app or a browser uses goes
+between marks**, and its names on that list.
+
+```
+node scripts/ios-bundle.mjs               # make ios/bundle/web and check it (run before xcodegen)
+node scripts/ios-bundle.mjs --check DIR   # check a folder, such as the one inside a built app
+```
 
 Exact alarms differ by flavor. `github` uses USE_EXACT_ALARM, which needs no asking.
 `play` uses SCHEDULE_EXACT_ALARM, because Play keeps USE_EXACT_ALARM for alarm and

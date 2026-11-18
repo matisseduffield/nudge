@@ -4,10 +4,14 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,interactive-widget=resizes-content">
 <meta name="referrer" content="no-referrer">
+<!-- ios:cut -->
 <meta name="theme-color" content="#F0F1F3" media="(prefers-color-scheme: light)">
 <meta name="theme-color" content="#171719" media="(prefers-color-scheme: dark)">
+<!-- ios:end -->
 <title>Nudge</title>
+<!-- ios:cut -->
 <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%2218 18 72 72%22><rect x=%2218%22 y=%2218%22 width=%2272%22 height=%2272%22 rx=%2217%22 fill=%22%23E5533D%22/><g transform=%22translate(0 -3)%22><path d=%22M54,28C42,28 35,37 35,49V62L29.5,71C28.5,72.7 29.7,75 31.7,75H76.3C78.3,75 79.5,72.7 78.5,71L73,62V49C73,37 66,28 54,28ZM42.17,55.33L49.17,62.33A3.3,3.3 0 0 0 54.03,62.11L66.53,47.11A3.3,3.3 0 0 0 61.47,42.89L51.28,55.12L46.83,50.67A3.3,3.3 0 0 0 42.17,55.33Z%22 fill=%22%23FFFFFF%22 fill-rule=%22evenodd%22/><path d=%22M46,79.5a8,8 0 0 0 16,0Z%22 fill=%22%23FFFFFF%22/></g></svg>">
+<!-- ios:end -->
 <link rel="preload" href="fonts/hanken-grotesk-latin.woff2" as="font" type="font/woff2" crossorigin>
 <link rel="stylesheet" href="style.css?v=19">
 </head>
@@ -26,10 +30,13 @@
         <button class="icon-btn" id="menuBtn" type="button" aria-label="More" aria-haspopup="menu" aria-expanded="false" aria-controls="menu"><svg width="20" height="20" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true"><circle cx="10" cy="3.6" r="1.7"/><circle cx="10" cy="10" r="1.7"/><circle cx="10" cy="16.4" r="1.7"/></svg></button>
       </div>
     </div>
-    <!-- More: Settings, and About, which says so when an update is waiting -->
+    <!-- More: Settings and About -->
     <div class="menu" id="menu" role="menu" hidden>
       <button class="menu-row" id="settingsBtn" type="button" role="menuitem"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 2.9 19.9 7.45v9.1L12 21.1l-7.9-4.55v-9.1z"/><circle cx="12" cy="12" r="3"/></svg><span>Settings</span></button>
+      <!-- ios:cut -->
+      <!-- An update is waiting: this row says so, and takes About's place -->
       <button class="menu-row" id="version" type="button" role="menuitem" data-state="available" hidden><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 11v5.5"/><circle cx="12" cy="7.7" r=".5" fill="currentColor"/></svg><span>Update available</span></button>
+      <!-- ios:end -->
       <button class="menu-row" id="aboutBtn" type="button" role="menuitem"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 11v5.5"/><circle cx="12" cy="7.7" r=".5" fill="currentColor"/></svg><span>About</span></button>
     </div>
     <div class="modes">
@@ -42,6 +49,7 @@
     </div>
   </header>
 
+  <!-- ios:cut -->
   <section class="update" id="updateCard" aria-label="App update" hidden>
     <div>
       <p class="update-title" id="updateTitle">Update available</p>
@@ -58,6 +66,7 @@
       <button class="btn primary" id="updateGo" type="button">Update</button>
     </div>
   </section>
+  <!-- ios:end -->
 
   <button class="warn" id="warn" type="button" hidden></button>
   <main class="view" id="view"></main>
@@ -137,11 +146,15 @@
           <option value="60">1 hour before</option><option value="1440">1 day before</option><option value="10080">1 week before</option><option value="custom">Pick a date and time</option>
         </select><button class="row-hit" type="button" data-pick="fAddReminder" data-pick-action aria-haspopup="menu" aria-expanded="false" aria-controls="pickMenu"><span class="row-k">Add a reminder</span><span class="row-v chev" aria-hidden="true"></span></button></div>
       <div class="row" id="fCustomRow" hidden><label class="row-hit"><span class="row-k">Date and time</span><span class="row-v" aria-hidden="true">Pick</span><input class="over" id="fCustom" type="datetime-local" aria-label="Reminder date and time"></label></div>
+      <!-- ios:cut -->
       <label class="row tall"><span class="row-k"><b>Ring like a call</b><small>Takes over the screen until you deal with it.</small></span><input class="switch" id="fLoud" type="checkbox" role="switch"></label>
+      <!-- ios:end -->
       <div class="row">
         <select id="fNag" aria-label="Keep nudging until done" hidden><option value="0">Off</option><option value="5">Every 5 minutes</option><option value="15">Every 15 minutes</option><option value="30">Every 30 minutes</option><option value="60">Every hour</option></select><button class="row-hit" type="button" data-pick="fNag" aria-haspopup="menu" aria-expanded="false" aria-controls="pickMenu"><span class="row-k">Keep nudging</span><span class="row-v chev" id="vNag"></span></button></div>
     </div>
+    <!-- ios:cut -->
     <button class="warn" id="fLoudFix" type="button" hidden></button>
+    <!-- ios:end -->
 
     <div class="card">
       <div class="row"><select id="fList" aria-label="List" hidden></select><button class="row-hit" type="button" data-pick="fList" aria-haspopup="menu" aria-expanded="false" aria-controls="pickMenu"><span class="row-k">List</span><span class="row-v chev" id="vList"></span></button></div>
@@ -216,7 +229,9 @@
       </div>
       <div class="about-links">
         <p class="about-row" id="aboutVer" hidden></p>
+        <!-- ios:cut -->
         <div id="aboutApp" hidden><button class="about-row" type="button" id="aboutCheck"><span>Check for updates</span><span id="aboutNote" aria-live="polite"></span></button></div>
+        <!-- ios:end -->
       </div>
       <div class="about-links">
         <a href="mailto:support@teloone.au?subject=Nudge" class="about-row"><span>Contact support<small>support@teloone.au</small></span></a>
@@ -226,6 +241,7 @@
     </div>
   </dialog>
 
+<!-- ios:cut -->
 <!-- Why exact alarms, before Android's settings page -->
 <dialog class="ask" id="exactAsk" aria-labelledby="exactTitle">
   <h2 id="exactTitle">Ring on time?</h2>
@@ -235,6 +251,7 @@
     <button class="btn primary" id="exactGo" type="button">Allow</button>
   </div>
 </dialog>
+<!-- ios:end -->
 
 <!-- Deleting a list. Cancel comes first, so it has the focus. -->
 <dialog class="ask" id="listAsk" aria-labelledby="askTitle" aria-describedby="askText">

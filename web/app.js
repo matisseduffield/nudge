@@ -2,11 +2,16 @@
   const L = window.NudgeLib;
   const $ = id => document.getElementById(id);
   const el = (tag, cls, text) => { const e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e; };
-  const app = window.nudgeApp || null;
+  const app = window.nudgeApp/* ios:cut */ || null/* ios:end */;
+  /* ios:cut */
   // The iPhone app says so before the page runs. It has its own notifications and
   // nothing to set up but those, and it keeps the keyboard down until a field is tapped.
   const ios = window.nudgePlatform === 'ios';
   if (ios) document.documentElement.dataset.platform = 'ios';
+  /* ios:end */
+  // Where the phone can't keep a reminder ringing by itself, one that has rung still has
+  // rings to come that only the page can plan again (lib.js, firings).
+  const late = /* ios:cut */ios && /* ios:end */true;
 
   const COLOURS = ['#2C53C4', '#1D7548', '#B0392D', '#C08A14', '#7A4FB5', '#5B6861'];
   const ICON = {
@@ -18,7 +23,7 @@
   };
 
   // ---- the data ----
-  // The phone's copy wins when there is one: it's the one that travels in Android's
+  // The phone's copy wins when there is one: it's the one that travels in the phone's
   // backup, and it's where taps on notifications go. localStorage just gives the
   // first screen something to draw straight away.
   const read = k => { try { return JSON.parse(localStorage.getItem('nudge.' + k)); } catch { return null; } };
@@ -36,12 +41,14 @@
     saveTimer = 0;
     write('state', state);
     const open = state.tasks.filter(L.isOpen);
-    toApp({ type: 'save', state: JSON.stringify(state), alarms: L.schedule(state, now(), ios), widget: { day: L.iso(now()), items: L.widgetItems(state.tasks, now()) } });
-    if (app && open.some(x => x.reminders.length) && health && !health.notifications && !read('askedNotify')) {
+    toApp({ type: 'save', state: JSON.stringify(state), alarms: L.schedule(state, now(), late)/* ios:cut */, widget: { day: L.iso(now()), items: L.widgetItems(state.tasks, now()) }/* ios:end */ });
+    if (/* ios:cut */app && /* ios:end */open.some(x => x.reminders.length) && health && !health.notifications && !read('askedNotify')) {
       write('askedNotify', true);
       toApp({ type: 'askNotifications' });
     }
+    /* ios:cut */
     askForExact();
+    /* ios:end */
   }
   function commit() { save(); render(); }
   // Typing saves once it pauses, not on every key: each save sets every reminder again.
@@ -50,7 +57,9 @@
     saveTimer = setTimeout(save, 400);
   }
   function saveNow() { if (saveTimer) save(); }
+  /* ios:cut */
   window.nudgeFlush = saveNow;
+  /* ios:end */
   document.addEventListener('visibilitychange', () => { if (document.hidden) saveNow(); });
   window.addEventListener('pagehide', saveNow);
 
@@ -79,8 +88,8 @@
     const page = topPage();
     // Already there: left alone, so it isn't read out again.
     if ($('toast').parentNode === (page || document.querySelector('footer'))) return;
-    // On iPhone it sits above the page's add box, clear of the home bar.
-    const quick = ios && page ? page.querySelector('.page-quick') : null;
+    // Where the page runs down under the home bar, it sits above the page's add box, clear of it.
+    const quick = /* ios:cut */ios && /* ios:end */page ? page.querySelector('.page-quick') : null;
     if (quick) quick.before($('toast')); else if (page) page.append($('toast')); else document.querySelector('footer').prepend($('toast'));
   }
   $('toastUndo').addEventListener('click', () => {
@@ -90,11 +99,13 @@
   });
 
   // ---- drawing a task ----
+  /* ios:cut */
   // On Android a reminder set to keep nudging goes on after its time until it's dealt with,
   // and only the phone knows if it has been: it counts as still ringing, as Alarms.keep has it.
   const nudging = t => !ios && L.isOpen(t) && L.nagOf(t) > 0 && t.reminders.length > 0;
+  /* ios:end */
   // Whether anything is still to ring. A reminder whose time has gone by isn't one.
-  const rings = t => L.firings(t, now(), 60, false, ios).length > 0 || nudging(t);
+  const rings = t => L.firings(t, now(), 60, false, late).length > 0/* ios:cut */ || nudging(t)/* ios:end */;
   // The tasks drawn with a bell, to tell when one has rung its last while the app sits open.
   const bells = () => state.tasks.filter(rings).map(t => t.id).join();
   let belled = '';
@@ -108,10 +119,12 @@
     }
     if (t.repeat) { const s = el('span'); s.innerHTML = ICON.repeat; s.append(L.repeatText(t.repeat)); sub.append(s); }
     if (rings(t)) {
-      const s = el('span', t.loud ? 'loud' : '');
+      const s = el('span'/* ios:cut */, t.loud ? 'loud' : ''/* ios:end */);
       s.innerHTML = ICON.bell;
-      if (t.loud) s.append('Rings like a call');
-      else if (t.nag) s.append('Keeps nudging');
+      /* ios:cut */
+      if (t.loud) s.append('Rings like a call'); else
+      /* ios:end */
+      if (t.nag) s.append('Keeps nudging');
       else if (t.reminders.length > 1) s.append(String(t.reminders.length), el('span', 'vh', 'reminders'));
       else s.append(el('span', 'vh', 'Reminder'));
       sub.append(s);
@@ -372,10 +385,12 @@
   });
 
   // ---- quick add ----
-  // The iPhone can't ring like a call, so three marks there mean urgent and no more.
   function parseQuick(text) {
     const q = L.parseQuick(text, now(), state.lists, { use24: state.prefs.use24 });
+    /* ios:cut */
+    // The iPhone can't ring like a call, so three marks there mean urgent and no more.
     if (ios) q.loud = false;
+    /* ios:end */
     return q;
   }
   function previewText(q) {
@@ -386,7 +401,9 @@
     if (q.listName) bits.push(listOf(q.list)?.name || `New list: ${q.listName}`);
     if (q.pri) bits.push(q.pri === 2 ? 'Urgent' : 'High');
     if (q.remind != null) bits.push(L.reminderText({ before: q.remind }, now(), state.prefs.use24, q.time));
+    /* ios:cut */
     if (q.loud) bits.push('Rings like a call');
+    /* ios:end */
     return bits.join(' · ');
   }
   function addFrom(text, list) {
@@ -593,9 +610,11 @@
     const name = list ? list.name : 'Inbox';
     const lines = L.listOrder(state.tasks.filter(t => L.isOpen(t) && (t.list || null) === openListId)).map(t => `- ${t.title}`);
     const text = [name, ...lines].join('\n');
-    if (app) return toApp({ type: 'share', title: name, text });
+    /* ios:cut */if (app) /* ios:end */return toApp({ type: 'share', title: name, text });
+    /* ios:cut */
     if (navigator.share) return navigator.share({ text }).catch(() => {});
     navigator.clipboard?.writeText(text).then(() => say('Copied'), () => {});
+    /* ios:end */
   });
   $('listQuick').addEventListener('submit', e => {
     e.preventDefault();
@@ -644,7 +663,9 @@
     }
     $('fRepeat').value = repeat === '1 days' ? '1 days' : repeat;
     $('fUntil').value = t.repeat?.until || '';
+    /* ios:cut */
     $('fLoud').checked = !!t.loud;
+    /* ios:end */
     $('fPri').value = String(t.pri);
     $('fList').replaceChildren(el('option', '', 'Inbox'), ...state.lists.map(l => { const o = el('option', '', l.name); o.value = l.id; return o; }));
     $('fList').firstChild.value = '';
@@ -664,13 +685,17 @@
     $('fUntilWrap').hidden = !t.repeat;
     $('fUntil').value = t.repeat?.until || '';
     $('fUntil').min = t.due || '';
+    /* ios:cut */
     // With no reminder there's nothing to ring like a call, so both read as off.
     const loud = !!t.loud && t.reminders.length > 0;
     $('fLoud').checked = loud;
     // Ringing like a call nudges by itself, so this shows what it will really do.
-    $('fNag').value = String(L.nagOf({ ...t, loud }));
+    /* ios:end */
+    $('fNag').value = String(L.nagOf({ ...t/* ios:cut */, loud/* ios:end */ }));
+    /* ios:cut */
     $('fNag').disabled = loud;
     renderLoudFix();
+    /* ios:end */
     $('fUntil').value = t.repeat?.until || '';
     const days = t.repeat?.unit === 'days' ? t.repeat.days || [] : null;
     $('fDaysRow').hidden = !days;
@@ -693,7 +718,7 @@
       b.innerHTML = ICON.cross;
       row.append(el('span', 'row-k', text));
       // One with nothing left to ring says so, rather than standing as if it were to come.
-      if (L.isOpen(t) && !nudging(t) && !L.firings({ ...t, reminders: [r], snooze: null }, now(), 60, false, ios).length) row.append(el('span', 'row-v', 'Passed'));
+      if (L.isOpen(t) /* ios:cut */&& !nudging(t) /* ios:end */&& !L.firings({ ...t, reminders: [r], snooze: null }, now(), 60, false, late).length) row.append(el('span', 'row-v', 'Passed'));
       row.append(b);
       return row;
     }));
@@ -738,9 +763,9 @@
   // A clear button empties its field as if it had been cleared by hand.
   for (const [x, field] of [['xDue', 'fDue'], ['xTime', 'fTime'], ['xUntil', 'fUntil']]) {
     // Focus stays on the row, as the button that was pressed goes away.
-    $(x).addEventListener('click', () => { $(field).value = ''; $(field).dispatchEvent(new Event('change')); if (!ios) $(field).focus(); });
+    $(x).addEventListener('click', () => { $(field).value = ''; $(field).dispatchEvent(new Event('change'));/* ios:cut */ if (!ios) $(field).focus();/* ios:end */ });
   }
-  // Tapping anywhere on a date or time row opens its picker, on a computer too.
+  // Tapping anywhere on a date or time row opens its picker, wherever the page is running.
   for (const input of document.querySelectorAll('input.over')) {
     input.addEventListener('click', () => { try { input.showPicker(); } catch {} });
   }
@@ -757,8 +782,10 @@
   $('fTitle').addEventListener('beforeinput', e => { if (e.inputType === 'insertLineBreak' || e.inputType === 'insertParagraph') { e.preventDefault(); $('fTitle').blur(); } });
   const edit = change => {
     const t = L.edited(task(editing), change);
+    /* ios:cut */
     // Ringing like a call goes with the last reminder, or adding one later would bring it back unseen.
     if (t.loud && !t.reminders.length) t.loud = false;
+    /* ios:end */
     setTask(editing, t);
     drawTaskExtras();
   };
@@ -829,7 +856,7 @@
   });
   // An iPhone's picker says it has changed at every touch of it, so there the
   // reminder is added once the picker is put away.
-  $('fCustom').addEventListener(ios ? 'blur' : 'change', () => {
+  $('fCustom').addEventListener(/* ios:cut */ios ? /* ios:end */'blur'/* ios:cut */ : 'change'/* ios:end */, () => {
     const at = $('fCustom').value;
     const t = task(editing);
     if (!at || !t) return;
@@ -846,6 +873,7 @@
     edit({ reminders: t.reminders.filter((_, i) => i !== Number(b.dataset.dropReminder)) });
   });
   $('fNag').addEventListener('change', () => edit({ nag: Number($('fNag').value) }));
+  /* ios:cut */
   $('fLoud').addEventListener('change', () => {
     const t = task(editing);
     const change = { loud: $('fLoud').checked };
@@ -858,6 +886,7 @@
     if (change.loud) change.reminders = L.ensureRing({ ...t, ...change }, now(), L.LOUD_NAG).reminders;
     edit(change);
   });
+  /* ios:end */
   $('fPri').addEventListener('change', () => edit({ pri: Number($('fPri').value) }));
   // Its place in the old list means nothing in the new one.
   $('fList').addEventListener('change', () => edit({ list: $('fList').value || null, order: undefined }));
@@ -921,27 +950,30 @@
   });
 
   // ---- settings ----
-  let health = null, askExact = false;
+  let health = null/* ios:cut */, askExact = false/* ios:end */;
   function renderHealth() {
     $('healthBox').hidden = !health;
-    const warning = L.reminderWarning(health, askExact);
+    const warning = L.reminderWarning(health/* ios:cut */, askExact/* ios:end */);
+    /* ios:cut */
     // While Ring on time? asks, the banner would only say it again.
-    $('warn').hidden = !warning || $('exactAsk').open || !state.tasks.some(t => L.isOpen(t) && t.reminders.length);
+    /* ios:end */
+    $('warn').hidden = !warning /* ios:cut */|| $('exactAsk').open /* ios:end */|| !state.tasks.some(t => L.isOpen(t) && t.reminders.length);
     $('warn').textContent = warning || '';
     if (!health) return;
-    const line = (name, ok, what) => {
+    const line = (name, ok/* ios:cut */, what/* ios:end */) => {
       const r = el('div', 'check');
       r.append(el('span', '', name));
       if (ok) r.append(el('b', '', 'On'));
       else {
         const b = el('button', 'tool', 'Turn on');
         b.type = 'button';
-        b.addEventListener('click', () => toApp({ type: 'openSettings', what }));
+        b.addEventListener('click', () => toApp({ type: 'openSettings'/* ios:cut */, what/* ios:end */ }));
         r.append(b);
       }
       return r;
     };
-    if (ios) return $('health').replaceChildren(line('Notifications', health.notifications, 'notifications'));
+    /* ios:cut */if (ios) return /* ios:end */$('health').replaceChildren(line('Notifications', health.notifications/* ios:cut */, 'notifications'/* ios:end */));
+    /* ios:cut */
     $('health').replaceChildren(
       line('Notifications', health.notifications, 'notifications'),
       line('Exact alarms', health.exact, 'alarms'),
@@ -949,9 +981,11 @@
       line('Full-screen alarms', health.fullScreen, 'fullscreen'),
       line('Show over other apps', health.overlay, 'overlay'),
     );
+    /* ios:end */
   }
   $('warn').addEventListener('click', () => openSettings());
 
+  /* ios:cut */
   // Says why before Android's settings page opens, and takes no for an answer.
   function askForExact() {
     const hasReminders = state.tasks.some(t => L.isOpen(t) && t.reminders.length);
@@ -973,6 +1007,7 @@
     const need = L.loudBlocker(health, askExact);
     if (need) toApp({ type: 'openSettings', what: need.what });
   });
+  /* ios:end */
   function openSettings() {
     $('sDefault').value = state.prefs.defaultReminder == null ? '' : String(state.prefs.defaultReminder);
     $('sSummary').value = state.prefs.summary || '';
@@ -1007,7 +1042,10 @@
   $('sSummary').addEventListener('change', () => { pref({ summary: $('sSummary').value || null }); settingsValues(); });
   $('s24').addEventListener('change', () => { pref({ use24: $('s24').checked }); settingsValues(); });
 
-  // ---- Android app bridge (absent in a browser) ----
+  // ---- pages over the app, and the app's bridge ----
+  /* ios:cut */
+  // The bridge is the Android app's or the iPhone app's, and absent in a browser.
+  /* ios:end */
   const stack = [];
   // A dialog opens with its first button focused, which a phone then rings in
   // the accent colour as if a keyboard had found it. On touch the page itself
@@ -1020,7 +1058,9 @@
       if (touch.matches) { d.tabIndex = -1; d.focus({ preventScroll: true }); }
       placeToast();
     }
+    /* ios:cut */
     tellBack();
+    /* ios:end */
   }
   // The one on top, whichever order they sit in the page.
   function openDialog() {
@@ -1032,7 +1072,9 @@
     return stack.filter(d => d.open && d.classList.contains('page')).pop();
   }
   function toApp(msg) {
+    /* ios:cut */
     if (!app) return;
+    /* ios:end */
     try { app.postMessage(JSON.stringify(msg)); } catch {}
   }
   function haptic() { toApp({ type: 'haptic' }); }
@@ -1043,8 +1085,11 @@
     if (d) { d.close(); return true; }
     return false;
   };
+  /* ios:cut */
+  // The Android app is told when its Back button has something to close.
   function tellBack() { toApp({ type: 'back', enabled: pickOpen() || !!openDialog() }); }
-  for (const d of document.querySelectorAll('dialog')) d.addEventListener('close', () => { tellBack(); placeToast(); });
+  /* ios:end */
+  for (const d of document.querySelectorAll('dialog')) d.addEventListener('close', () => { /* ios:cut */tellBack(); /* ios:end */placeToast(); });
 
   // ---- drop-downs ----
   // Each choice row is a button beside its hidden <select>, which stays the source of truth: the
@@ -1097,7 +1142,9 @@
     trigger.setAttribute('aria-expanded', 'true');
     const at = pickMenu.querySelector('[aria-checked="true"]') || pickMenu.querySelector('.menu-row:not(:disabled)');
     if (at) { at.focus({ preventScroll: true }); at.scrollIntoView({ block: 'nearest' }); }
+    /* ios:cut */
     tellBack();
+    /* ios:end */
   }
   // Focus goes back to the row, so the keyboard carries on from where it was.
   function closePick(refocus = true) {
@@ -1107,7 +1154,9 @@
     pickMenu.hidden = true;
     trigger.setAttribute('aria-expanded', 'false');
     if (refocus) trigger.focus({ preventScroll: true });
+    /* ios:cut */
     tellBack();
+    /* ios:end */
   }
   for (const b of document.querySelectorAll('[data-pick]')) {
     b.addEventListener('click', () => (picking === b ? closePick() : openPick(b)));
@@ -1161,17 +1210,25 @@
   document.addEventListener('keydown', e => { if (e.key === 'Tab' || e.key.startsWith('Arrow')) document.documentElement.classList.add('kbd'); }, true);
   document.addEventListener('pointerdown', () => document.documentElement.classList.remove('kbd'), true);
 
+  /* ios:cut */
   // selfUpdates is off until the app says otherwise: Play builds update through
   // the store, so there About has no row to check for one.
   let selfUpdates = false, updateReady = false, versionTimer = 0, updateVersion = '', updateSize = 0;
-  // About sits at the foot of Settings. The top right only speaks when an update is waiting.
+  // The top right only speaks when an update is waiting.
+  /* ios:end */
+  // About sits at the foot of Settings, with the app's version beside it.
   let appVersion = '';
   function showLabel() {
+    /* ios:cut */
     $('version').hidden = !updateReady;
-    $('aboutRowV').textContent = updateReady ? 'Update available' : appVersion;
+    /* ios:end */
+    $('aboutRowV').textContent = /* ios:cut */updateReady ? 'Update available' : /* ios:end */appVersion;
+    /* ios:cut */
     $('aboutRowV').classList.toggle('new', updateReady);
     if (updateReady) showNote('Available');
+    /* ios:end */
   }
+  /* ios:cut */
   function showNote(text) {
     clearTimeout(versionTimer);
     $('aboutNote').textContent = text;
@@ -1208,12 +1265,15 @@
       $('updatePct').textContent = p + '%';
     }
   }
+  /* ios:end */
   function takeActions(actions) {
     if (!Array.isArray(actions) || !actions.length) return;
     state = L.applyActions(state, actions, now());
     commit();
   }
+  /* ios:cut */
   if (app) {
+  /* ios:end */
     app.onmessage = e => {
       let m;
       try { m = JSON.parse(e.data); } catch { return; }
@@ -1226,22 +1286,31 @@
       else if (m.type === 'health') {
         health = m;
         renderHealth();
+        /* ios:cut */
         renderLoudFix();
         askForExact();
+        /* ios:end */
       } else if (m.type === 'open') {
         if (m.task) openTask(m.task);
+      /* ios:cut */
       } else if (m.type === 'focusAdd') {
         while (window.nudgeBack());
         $('quickBox').focus();
+      /* ios:end */
       } else if (m.type === 'info') {
+        /* ios:cut */
         selfUpdates = m.updates === true;
         askExact = m.askExact === true;
+        /* ios:end */
         appVersion = m.version || '';
         // A row of About's list: the word at the left, the number at the right.
         $('aboutVer').replaceChildren(el('span', '', 'Version'), el('span', '', m.version || ''));
         $('aboutVer').hidden = !m.version;
+        /* ios:cut */
         $('aboutApp').hidden = !selfUpdates;
+        /* ios:end */
         showLabel();
+      /* ios:cut */
       } else if (m.type === 'updateStatus' && selfUpdates) {
         if (m.state === 'available') { updateReady = true; return showLabel(); }
         showNote(m.state === 'latest' ? 'Up to date' : 'Couldn’t check');
@@ -1249,8 +1318,10 @@
       } else if (m.type === 'update' && selfUpdates) {
         if (m.state === 'available') { updateReady = true; showLabel(); }
         showUpdate(m);
+      /* ios:end */
       }
     };
+    /* ios:cut */
     $('updateGo').addEventListener('click', () => { showUpdate({ state: 'downloading', progress: 0 }); toApp({ type: 'installUpdate' }); });
     $('updateLater').addEventListener('click', () => { $('updateCard').hidden = true; });
     $('aboutCheck').addEventListener('click', () => {
@@ -1260,6 +1331,7 @@
     });
   }
   $('version').addEventListener('click', () => show('aboutPage'));
+  /* ios:end */
   $('aboutBtn').addEventListener('click', () => show('aboutPage'));
   $('aboutRow').addEventListener('click', () => show('aboutPage'));
 
@@ -1289,12 +1361,14 @@
   document.addEventListener('visibilitychange', () => { if (!document.hidden) checkDay(); });
 
   // ---- boot ----
+  /* ios:cut */
   // An iPhone can't hand its screen to a reminder, so the switch for it isn't offered.
   if (ios) $('fLoud').closest('.row').hidden = true;
-  // A phone lets a reminder ring only so many times unanswered.
-  if (ios) $('fNag').setAttribute('aria-label', 'Keep nudging');
-  if (ios) for (const o of $('fNag').options) if (o.value !== '0') o.textContent += ', 3 more times';
+  /* ios:end */
+  // An iPhone lets a reminder ring only so many times unanswered.
+  /* ios:cut */if (ios) /* ios:end */$('fNag').setAttribute('aria-label', 'Keep nudging');
+  /* ios:cut */if (ios) /* ios:end */for (const o of $('fNag').options) if (o.value !== '0') o.textContent += ', 3 more times';
   // Hello goes first, so a bad local copy can't stop the phone's good one arriving.
-  if (app) toApp({ type: 'hello' }); else write('state', state);
+  /* ios:cut */if (app) /* ios:end */toApp({ type: 'hello' });/* ios:cut */ else write('state', state);/* ios:end */
   render();
 })();

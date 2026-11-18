@@ -1,7 +1,10 @@
 // Nudge's pure logic: dates, repeats, quick add, and working out when reminders
-// fire. No DOM, so it runs in the page and under `node --test`.
+// fire. No DOM.
+/* ios:cut */
+// So it runs in the page and under `node --test`.
+/* ios:end */
 //
-// The app hands the phone a plain list of alarms worked out here, so the Android
+// The app hands the phone a plain list of alarms worked out here, so the phone's
 // side never needs to understand tasks. An alarm carries the occurrence it belongs
 // to, which is how a Done tapped on a notification finds its way back.
 (function (root) {
@@ -77,7 +80,7 @@
   function parseQuick(text, now, lists = [], options = {}) {
     const today = iso(now);
     let t = ` ${text.trim()} `;
-    const out = { title: '', due: null, time: null, pri: 0, repeat: null, list: null, listName: null, remind: null, loud: false };
+    const out = { title: '', due: null, time: null, pri: 0, repeat: null, list: null, listName: null, remind: null/* ios:cut */, loud: false/* ios:end */ };
     const take = (re, fn) => {
       const m = t.match(re);
       if (!m) return false;
@@ -91,8 +94,10 @@
       const hit = lists.find(l => l.name.toLowerCase().replace(/\s+/g, '') === m[1].toLowerCase());
       out.list = hit ? hit.id : null;
     });
+    /* ios:cut */
     // Three is the top of the scale: it rings like a call.
-    take(/\s(!{1,3})(?=\s)/, m => { out.pri = Math.min(2, m[1].length); out.loud = m[1].length === 3; });
+    /* ios:end */
+    take(/\s(!{1,3})(?=\s)/, m => { out.pri = Math.min(2, m[1].length);/* ios:cut */ out.loud = m[1].length === 3;/* ios:end */ });
     take(/\sremind(?: me)?\s+(\d+)\s*(m|mins?|minutes?|h|hrs?|hours?|d|days?)\s+before(?=\s)/i, m => {
       out.remind = Number(m[1]) * ({ m: 1, h: 60, d: 1440 }[m[2][0].toLowerCase()]);
     });
@@ -282,20 +287,24 @@
 
   function makeTask(fields, now, prefs = {}) {
     const reminders = fields.remind != null ? [{ before: fields.remind }]
+      /* ios:cut */
       : fields.loud ? [{ before: 0 }]
+      /* ios:end */
         : fields.due && prefs.defaultReminder != null ? [{ before: prefs.defaultReminder }] : [];
-    return ensureRing({
-      id: newId(now), title: fields.title, notes: '', list: fields.list || null, due: fields.due || (fields.remind != null || fields.loud ? iso(now) : null), time: fields.time || null,
-      pri: fields.pri || 0, repeat: fields.repeat || null, reminders, nag: 0, loud: !!fields.loud, subs: [], done: null, deleted: null, snooze: null, created: +now,
-    }, now);
+    return /* ios:cut */ensureRing(/* ios:end */{
+      id: newId(now), title: fields.title, notes: '', list: fields.list || null, due: fields.due || (fields.remind != null /* ios:cut */|| fields.loud /* ios:end */? iso(now) : null), time: fields.time || null,
+      pri: fields.pri || 0, repeat: fields.repeat || null, reminders, nag: 0, /* ios:cut */loud: !!fields.loud, /* ios:end */subs: [], done: null, deleted: null, snooze: null, created: +now,
+    }/* ios:cut */, now)/* ios:end */;
   }
 
+  /* ios:cut */
   // An urgent task has to have something left to ring, even if its time has gone by:
   // an hour away for a new task, sooner when switched on for one already due.
   function ensureRing(task, now, leadMinutes = 60) {
     if (!task.loud || firings(task, now).length) return task;
     return { ...task, reminders: [...task.reminders, { at: local(new Date(+now + leadMinutes * 6e4)) }] };
   }
+  /* ios:end */
 
   const isOpen = t => !t.done && !t.deleted;
 
@@ -307,13 +316,19 @@
     return moved && out.snooze ? { ...out, snooze: null } : out;
   }
 
-  // What the phone's settings mean for reminders. askExact is on in builds where the
-  // person has to allow exact alarms: there, without it, reminders are late, not off.
-  function reminderWarning(health, askExact) {
-    if (!health || (health.notifications && health.exact)) return null;
+  // What the phone's settings mean for reminders.
+  /* ios:cut */
+  // askExact is on in builds where the person has to allow exact alarms: there,
+  // without it, reminders are late, not off.
+  /* ios:end */
+  function reminderWarning(health/* ios:cut */, askExact/* ios:end */) {
+    if (!health || (health.notifications/* ios:cut */ && health.exact/* ios:end */)) return null;
+    /* ios:cut */
     if (askExact && health.notifications) return 'Reminders may ring late. Tap to fix.';
+    /* ios:end */
     return 'Reminders are switched off. Tap to fix.';
   }
+  /* ios:cut */
   // Asked once, after notifications, and only when a task has a reminder to ring.
   const shouldAskExact = (health, askExact, hasReminders, asked) =>
     !!(askExact && hasReminders && !asked && health && health.notifications && !health.exact);
@@ -329,6 +344,7 @@
     if (!health.fullScreen) return { what: 'fullscreen', text: 'Allow full-screen alarms, or this won’t show on the lock screen. Tap to turn it on.' };
     return null;
   }
+  /* ios:end */
 
   // Ticking off: a repeating task moves to its next date, and anything else is done.
   function complete(task, now) {
@@ -359,9 +375,12 @@
     return out;
   }
 
+  /* ios:cut */
   // A task that rings like a call keeps coming back until it's dealt with.
   const LOUD_NAG = 5;   // minutes
-  const nagOf = task => task.nag || (task.loud ? LOUD_NAG : 0);
+  /* ios:end */
+  // How often a task set to keep nudging rings again, in minutes.
+  const nagOf = task => task.nag || /* ios:cut */(task.loud ? LOUD_NAG : /* ios:end */0/* ios:cut */)/* ios:end */;
 
   // When a reminder rings. Days and weeks before keep the clock time, even across a
   // change of daylight saving.
@@ -372,9 +391,9 @@
 
   // Every alarm a task should raise from now on. The text is written for the moment
   // it rings, not the moment it's saved.
-  // With `late` (the iPhone), a reminder that has rung on a task set to keep nudging
-  // stays in the list while its three extra rings are still to come, unless it has
-  // been snoozed since. The phone there can't keep those going by itself.
+  // With `late`, a reminder that has rung on a task set to keep nudging stays in the
+  // list while its three extra rings are still to come, unless it has been snoozed
+  // since. That is for a phone that can't keep those going by itself.
   function firings(task, now, limit = 60, use24 = false, late = false) {
     if (!isOpen(task)) return [];
     const out = [];
@@ -382,7 +401,7 @@
     const add = (when, occ) => {
       const nag = nagOf(task);
       const ringing = late && nag > 0 && +when + nag * 3 * 6e4 > now && !(task.snooze > when);
-      if (when > now || ringing) out.push({ id: `${task.id}|${local(when)}`, task: task.id, occ, at: local(when), title: task.title, body: body(when, occ), nag: nagOf(task), loud: !!task.loud, use24 });
+      if (when > now || ringing) out.push({ id: `${task.id}|${local(when)}`, task: task.id, occ, at: local(when), title: task.title, body: body(when, occ), nag: nagOf(task), /* ios:cut */loud: !!task.loud, /* ios:end */use24 });
     };
     for (const occ of occurrences(task, limit, iso(now))) {
       for (const r of task.reminders) if (r.before != null) add(ringTime(occ, task.time, r.before), occ);
@@ -402,8 +421,11 @@
     return nextDate(day, repeat);
   }
 
-  // What a morning summary says. AlarmPlan.summaryText says it the same way, for when
+  // What a morning summary says. The app's own code says it the same way, for when
   // the phone takes a task off the count.
+  /* ios:cut */
+  // (On Android that is AlarmPlan.summaryText and AlarmPlan.afterDone.)
+  /* ios:end */
   const summaryText = (names, count = names.length) => ({ title: `${count} ${count === 1 ? 'task' : 'tasks'} today`, body: names.slice(0, 3).join(', ') });
 
   // The tasks a summary lists for the phone, so Done on a notification can take them off
@@ -413,7 +435,7 @@
   // Ticking off a repeating task catches it up to the date ticked, or to today if that's
   // later (complete), so it stops counting for this summary's day once that reaches its
   // last date on or before the day. Each item is [task, that date, title, due], where due
-  // is '' for a one-off task, which any Done finishes. AlarmPlan.afterDone reads these.
+  // is '' for a one-off task, which any Done finishes. The app's own code reads these.
   function summaryItem(t, day) {
     if (!t.repeat) return [t.id, t.due, t.title, ''];
     let last = t.due;
@@ -499,6 +521,7 @@
 
   const byDue = (a, b) => (a.due || '9999').localeCompare(b.due || '9999') || (a.time || '99').localeCompare(b.time || '99') || b.pri - a.pri || a.created - b.created;
 
+  /* ios:cut */
   // What the home screen widget is given: open tasks up to a week ahead, each with its
   // date, so it can move on to a new day by itself before the app is next opened. A
   // repeating task comes with each of its dates that week, so ticking one off on a
@@ -514,6 +537,7 @@
     }
     return out.sort((a, b) => a.due.localeCompare(b.due));
   }
+  /* ios:end */
 
   function today(tasks, now) {
     const day = iso(now);
@@ -608,7 +632,9 @@
       pri: [1, 2].includes(t.pri) ? t.pri : 0,
       repeat: day(t.due) ? repeatOf(t.repeat) : null,
       nag: Number.isFinite(t.nag) ? t.nag : 0,
+      /* ios:cut */
       loud: t.loud === true,
+      /* ios:end */
       done: stamp(t.done),
       deleted: stamp(t.deleted),
       snooze: stamp(t.snooze),
@@ -620,7 +646,10 @@
     return { lists, tasks, prefs: { summary: null, defaultReminder: 0, use24: false, ...(s.prefs || {}) } };
   }
 
-  const lib = { edited, summaryText, reminderWarning, shouldAskExact, exactBlocker, loudBlocker, iso, parseDay, addDays, daysBetween, atTime, local, nextDate, repeatText, parseQuick, makeTask, newId, isOpen, complete, occurrences, firings, schedule, applyActions, today, upcoming, search, dayText, timeText, reminderText, cleanState, ensureRing, fitToDays, nagOf, LOUD_NAG, widgetItems, canMove, moveOverdue, doneToday, listOrder, tidy };
+  const lib = { edited, summaryText, reminderWarning, /* ios:cut */shouldAskExact, exactBlocker, loudBlocker, /* ios:end */iso, parseDay, addDays, daysBetween, atTime, local, nextDate, repeatText, parseQuick, makeTask, newId, isOpen, complete, occurrences, firings, schedule, applyActions, today, upcoming, search, dayText, timeText, reminderText, cleanState, /* ios:cut */ensureRing, /* ios:end */fitToDays, nagOf, /* ios:cut */LOUD_NAG, widgetItems, /* ios:end */canMove, moveOverdue, doneToday, listOrder, tidy };
+  /* ios:cut */
   if (typeof module === 'object' && module.exports) module.exports = lib;
-  else root.NudgeLib = lib;
+  else
+  /* ios:end */
+  root.NudgeLib = lib;
 })(this);

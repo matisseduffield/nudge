@@ -1,8 +1,13 @@
 import UIKit
 import UserNotifications
 
-/// Nudge on iPhone: the same pages as the other builds, with the phone's own
+/// Nudge on iPhone: the to-do page, kept in the app, with the phone's own
 /// notifications doing the reminding.
+///
+/// The page is the folder `web` in the app, which is `ios/bundle/web`: the shared
+/// page without the parts the iPhone app doesn't have (see scripts/ios-bundle.mjs).
+/// What it can ask of the app is here and in Shell.swift: keep the tasks, plan the
+/// reminders, ask about notifications, the share sheet and a tick on taps.
 @MainActor
 enum App {
     static let config = ShellConfig(
@@ -28,8 +33,6 @@ enum App {
 
     static func setUp(_ shell: Shell) {
         ready = false
-        // The pages know where they are before they draw anything.
-        shell.scripts = ["window.nudgePlatform = 'ios';"]
         shell.onMessage = { type, msg in
             switch type {
             case "hello":
@@ -56,8 +59,6 @@ enum App {
                         UIApplication.shared.open(settings)
                     }
                 }
-                return true
-            case "back", "checkUpdate", "installUpdate":
                 return true
             default:
                 return false
@@ -91,13 +92,6 @@ enum App {
         shell.view.addGestureRecognizer(swipe)
     }
 
-    static func opened(link: URL) {}
-
-    /// The shell's own route for a tapped notification. Nudge's go through ReminderTaps.
-    static func opened(notification: [AnyHashable: Any]) {
-        open(task: notification["task"] as? String ?? "")
-    }
-
     /// A tapped reminder opens its task.
     static func open(task: String) {
         guard !task.isEmpty else { return }
@@ -129,13 +123,10 @@ enum App {
         sendHealth()
     }
 
-    /// What the page's reminder check shows. Only notifications can be off on iPhone.
+    /// What the page's reminder check shows: whether notifications are allowed.
     private static func sendHealth() {
         Notices.allowed { allowed in
-            Shell.current?.send([
-                "type": "health", "notifications": allowed,
-                "exact": true, "battery": true, "fullScreen": true, "overlay": true,
-            ])
+            Shell.current?.send(["type": "health", "notifications": allowed])
         }
     }
 }
